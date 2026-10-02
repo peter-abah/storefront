@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cancelOrder } from "@/lib/actions/orders";
+import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
 
 /** Shopper cancel button — pending orders within the 12h window only. */
 export function CancelOrderButton({ orderId }: { orderId: string }) {
@@ -13,11 +14,13 @@ export function CancelOrderButton({ orderId }: { orderId: string }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const confirmRef = useRef<HTMLButtonElement | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
+  const { stop: stopScroll, start: startScroll } = useSmoothScroll();
 
   useEffect(() => {
     if (!open) return;
     openerRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement as HTMLButtonElement : null;
+    stopScroll();
     const t = window.setTimeout(() => confirmRef.current?.focus(), 0);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -44,10 +47,11 @@ export function CancelOrderButton({ orderId }: { orderId: string }) {
     return () => {
       window.clearTimeout(t);
       window.removeEventListener("keydown", onKey);
+      startScroll();
       openerRef.current?.focus?.();
       openerRef.current = null;
     };
-  }, [open ]);
+  }, [open, stopScroll, startScroll]);
 
   async function onConfirm() {
     setPending(true);
@@ -84,7 +88,7 @@ export function CancelOrderButton({ orderId }: { orderId: string }) {
         </p>
       ) : null}
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
           <button
             type="button"
             aria-label="Close cancel dialog"
@@ -97,7 +101,8 @@ export function CancelOrderButton({ orderId }: { orderId: string }) {
             aria-modal="true"
             aria-labelledby="cancel-order-h"
             aria-describedby="cancel-order-d"
-            className="relative w-full max-w-md rounded-lg border border-ink/10 bg-paper p-5 shadow-lift"
+            data-lenis-prevent
+            className="relative my-auto max-h-[90vh] max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-ink/10 bg-paper p-5 shadow-lift"
           >
             <h2 id="cancel-order-h" className="font-display text-xl">
               Cancel this order?

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { adjustStock, getProductImpact, toggleProductActive, upsertProduct, type AdminProduct } from "@/lib/actions/admin";
+import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
 
 const inputCls =
   "w-full rounded-md border border-ink/20 bg-cream px-3 py-2 text-sm text-ink placeholder:text-ink-mute focus:border-bronze focus:outline-none";
@@ -37,7 +38,9 @@ function ConfirmModal({
 }) {
   const confirmRef = useRef<HTMLButtonElement | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
+  const { stop: stopScroll, start: startScroll } = useSmoothScroll();
   useEffect(() => {
+    stopScroll();
     const t = window.setTimeout(() => confirmRef.current?.focus(), 0);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -66,10 +69,11 @@ function ConfirmModal({
     return () => {
       window.clearTimeout(t);
       window.removeEventListener("keydown", onKey);
+      startScroll();
     };
-  }, [onClose]);
+  }, [onClose, stopScroll, startScroll]);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto p-4">
       <div aria-hidden onClick={onClose} className="absolute inset-0 bg-ink/40" />
       <div
         ref={boxRef}
@@ -77,7 +81,8 @@ function ConfirmModal({
         aria-modal="true"
         aria-labelledby="destructive-confirm-h"
         aria-describedby={descriptionId}
-        className="relative w-full max-w-md rounded-lg border border-ink/10 bg-paper p-5 shadow-lift"
+        data-lenis-prevent
+        className="relative my-auto max-h-[90vh] max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-ink/10 bg-paper p-5 shadow-lift"
       >
         <h2 id="destructive-confirm-h" className="font-display text-xl">{title}</h2>
         <div id={descriptionId} className="mt-2 text-sm leading-relaxed text-ink-soft">
@@ -120,14 +125,17 @@ export function ProductForm({ product }: { product?: AdminProduct | null }) {
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
   const close = useCallback(() => setOpen(false), []);
+  const { stop: stopScroll, start: startScroll } = useSmoothScroll();
 
   // Escape close + focus trap + initial focus + focus restore for the
   // product dialog. Yields to the nested hide-confirm alertdialog while
   // it is open (it traps focus and handles Escape itself).
+  // Pauses Lenis so the panel (data-lenis-prevent) scrolls natively.
   useEffect(() => {
     if (!open) return;
     previouslyFocused.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    stopScroll();
     const t = window.setTimeout(() => closeBtnRef.current?.focus(), 0);
     const focusables = () =>
       panelRef.current?.querySelectorAll<HTMLElement>(
@@ -160,10 +168,11 @@ export function ProductForm({ product }: { product?: AdminProduct | null }) {
     return () => {
       window.clearTimeout(t);
       window.removeEventListener("keydown", onKey);
+      startScroll();
       previouslyFocused.current?.focus?.();
       previouslyFocused.current = null;
     };
-  }, [open, close]);
+  }, [open, close, stopScroll, startScroll]);
 
   const [form, setForm] = useState<{
     name: string;
@@ -285,9 +294,9 @@ export function ProductForm({ product }: { product?: AdminProduct | null }) {
         {isEdit ? "Edit" : "New product"}
       </button>
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={isEdit ? "Edit product" : "New product"}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4" role="dialog" aria-modal="true" aria-label={isEdit ? "Edit product" : "New product"}>
           <div aria-hidden onClick={close} className="absolute inset-0 bg-ink/40 opacity-100 transition-opacity duration-200" />
-          <div ref={panelRef} id="product-dialog" className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-ink/10 bg-paper p-5 transition-transform duration-200">
+          <div ref={panelRef} id="product-dialog" data-lenis-prevent className="relative my-auto max-h-[90vh] max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-ink/10 bg-paper p-5 transition-transform duration-200">
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-display text-2xl">{isEdit ? "Edit product" : "New product"}</h2>
               <button ref={closeBtnRef} type="button" onClick={close} className="rounded-pill border border-ink/15 px-3 py-1 text-sm">

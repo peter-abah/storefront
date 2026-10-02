@@ -6,6 +6,7 @@ import { getOrderDetail, type OrderDetailDTO } from "@/lib/actions/orders";
 import { transitionOrder, type AdminOrderRow } from "@/lib/actions/admin";
 import { canTransition, isPrepaid, ORDER_STATUSES, type OrderStatus } from "@/lib/order-machine";
 import { StatusPill } from "@/components/orders/StatusPill";
+import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
 
 type Props = {
   orders: AdminOrderRow[];
@@ -32,12 +33,15 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
   const closeDetail = useCallback(() => setSelectedId(null), []);
+  const { stop: stopScroll, start: startScroll } = useSmoothScroll();
 
   // Escape close + focus trap + initial focus + focus restore for the drawer.
+  // Pauses Lenis so the drawer (data-lenis-prevent) scrolls natively (mirrors CartDrawer).
   useEffect(() => {
     if (!selectedId) return;
     previouslyFocused.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    stopScroll();
     const t = window.setTimeout(() => drawerCloseRef.current?.focus(), 0);
     const focusables = () =>
       drawerRef.current?.querySelectorAll<HTMLElement>(
@@ -69,10 +73,11 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
     return () => {
       window.clearTimeout(t);
       window.removeEventListener("keydown", onKey);
+      startScroll();
       previouslyFocused.current?.focus?.();
       previouslyFocused.current = null;
     };
-  }, [selectedId, closeDetail, pendingCancel]);
+  }, [selectedId, closeDetail, pendingCancel, stopScroll, startScroll]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -275,6 +280,7 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
             ref={drawerRef}
             id="order-detail-drawer"
             aria-label="Order detail panel"
+            data-lenis-prevent
             className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto bg-paper p-5 shadow-lift transition-transform duration-200"
           >
             <div className="flex items-center justify-between gap-3">
@@ -356,7 +362,7 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
               </div>
             ) : null}
             {pendingCancel === "cancelled" && detail ? (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto p-4">
                 <div
                   aria-hidden
                   onClick={() => setPendingCancel(null)}
@@ -367,7 +373,8 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
                   aria-modal="true"
                   aria-labelledby="cancel-restock-h"
                   aria-describedby="cancel-restock-d"
-                  className="relative w-full max-w-md rounded-lg border border-ink/10 bg-paper p-5 shadow-lift"
+                  data-lenis-prevent
+                  className="relative my-auto max-h-[90vh] max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-ink/10 bg-paper p-5 shadow-lift"
                 >
                   <h2 id="cancel-restock-h" className="font-display text-xl">
                     {prepaidPaid ? `Refund ${detail.order.number}?` : `Cancel ${detail.order.number}?`}
@@ -380,7 +387,7 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
                         ? " The Paystack payment is refunded automatically and the order stays in history as refunded."
                         : " The order stays in history as cancelled."}
                     </p>
-                    <ul className="mt-2 flex max-h-32 flex-col gap-1 overflow-y-auto text-xs">
+                    <ul data-lenis-prevent className="mt-2 flex max-h-32 flex-col gap-1 overflow-y-auto text-xs">
                       {detail.items.map((l) => (
                         <li key={l.productId} className="flex justify-between gap-2">
                           <span className="truncate">{l.name}</span>

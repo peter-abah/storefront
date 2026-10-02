@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteRate, upsertRate, upsertZone, type AdminZone } from "@/lib/actions/admin";
+import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
 
 const inputCls =
   "w-full rounded-md border border-ink/20 bg-cream px-3 py-2 text-sm text-ink placeholder:text-ink-mute focus:border-bronze focus:outline-none";
@@ -27,11 +28,13 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
   const deleteConfirmRef = useRef<HTMLButtonElement | null>(null);
   const deleteDialogRef = useRef<HTMLDivElement | null>(null);
   const deleteOpenerRef = useRef<HTMLElement | null>(null);
+  const { stop: stopScroll, start: startScroll } = useSmoothScroll();
 
   useEffect(() => {
     if (!pendingDelete) return;
     deleteOpenerRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    stopScroll();
     const t = window.setTimeout(() => deleteConfirmRef.current?.focus(), 0);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -60,10 +63,11 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
     return () => {
       window.clearTimeout(t);
       window.removeEventListener("keydown", onKey);
+      startScroll();
       deleteOpenerRef.current?.focus?.();
       deleteOpenerRef.current = null;
     };
-  }, [pendingDelete]);
+  }, [pendingDelete, stopScroll, startScroll]);
 
   async function submitZone(e: React.FormEvent) {
     e.preventDefault();
@@ -232,7 +236,7 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
       ) : null}
       {rateError && !rate.zoneId ? <p role="alert" className="text-sm text-clay">{rateError}</p> : null}
       {pendingDelete ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
           <button
             type="button"
             aria-label="Close delete confirmation"
@@ -246,7 +250,8 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
             aria-modal="true"
             aria-labelledby="delete-rate-h"
             aria-describedby="delete-rate-d"
-            className="relative w-full max-w-md rounded-lg border border-ink/10 bg-paper p-5 shadow-lift"
+            data-lenis-prevent
+            className="relative my-auto max-h-[90vh] max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-ink/10 bg-paper p-5 shadow-lift"
           >
             <h2 id="delete-rate-h" className="font-display text-xl">
               Delete rate in {pendingDelete.zoneName}?

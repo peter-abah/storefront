@@ -9,6 +9,7 @@ import { checkoutSchema } from "@/lib/validations";
 import { formatDisplay, toDisplay } from "@/lib/money";
 import { PAYSTACK_CURRENCY, PAYSTACK_INLINE_JS, formatKobo } from "@/lib/paystack";
 import { notifyCartUpdated } from "@/lib/cart-events";
+import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
 
 declare global {
   interface Window {
@@ -183,16 +184,20 @@ export function CheckoutForm({
   const confirmDialogRef = useRef<HTMLDivElement | null>(null);
   const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const confirmOpenerRef = useRef<HTMLElement | null>(null);
+  const { stop: stopScroll, start: startScroll } = useSmoothScroll();
   // Ref mirror so the modal Escape guard never goes stale mid-payment.
   const payPhaseRef = useRef(payPhase);
   payPhaseRef.current = payPhase;
 
   // Confirm modal a11y: Escape close (unless placing), Tab trap,
   // initial focus on confirm, return focus to opener (mirrors CancelOrderButton).
+  // Pauses Lenis so wheel/touch scrolls the dialog (data-lenis-prevent),
+  // not the page behind it (mirrors CartDrawer).
   useEffect(() => {
     if (!showConfirm) return;
     confirmOpenerRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    stopScroll();
     const t = window.setTimeout(() => confirmButtonRef.current?.focus(), 0);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -224,10 +229,11 @@ export function CheckoutForm({
     return () => {
       window.clearTimeout(t);
       window.removeEventListener("keydown", onKey);
+      startScroll();
       confirmOpenerRef.current?.focus?.();
       confirmOpenerRef.current = null;
     };
-  }, [showConfirm]);
+  }, [showConfirm, stopScroll, startScroll]);
 
   // Restore draft saved before navigating to Terms/Shipping/Returns/orders.
   // Runs client-only after hydration so server HTML never mismatches.
@@ -575,9 +581,9 @@ export function CheckoutForm({
 
   return (
     <>
-      <form onSubmit={openConfirm} className="mt-8 grid grid-cols-12 gap-8" noValidate>
-        <div className="col-span-12 flex flex-col gap-8 lg:col-span-7">
-          <section aria-labelledby="contact-h" className="rounded-lg border border-ink/10 bg-cream p-5">
+      <form onSubmit={openConfirm} className="mt-8 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8" noValidate>
+        <div className="col-span-1 flex min-w-0 flex-col gap-6 lg:col-span-7 lg:gap-8">
+          <section aria-labelledby="contact-h" className="min-w-0 rounded-lg border border-ink/10 bg-cream p-5">
             <h2 id="contact-h" className="font-display text-xl">Contact</h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="block">
@@ -611,7 +617,7 @@ export function CheckoutForm({
             </label>
           </section>
 
-          <section aria-labelledby="address-h" className="rounded-lg border border-ink/10 bg-cream p-5">
+          <section aria-labelledby="address-h" className="min-w-0 rounded-lg border border-ink/10 bg-cream p-5">
             <h2 id="address-h" className="font-display text-xl">Delivery address</h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="block sm:col-span-1">
@@ -680,7 +686,7 @@ export function CheckoutForm({
             </div>
           </section>
 
-          <section aria-labelledby="currency-h" className="rounded-lg border border-ink/10 bg-cream p-5">
+          <section aria-labelledby="currency-h" className="min-w-0 rounded-lg border border-ink/10 bg-cream p-5">
             <h2 id="currency-h" className="font-display text-xl">Currency</h2>
             <label className="mt-4 block max-w-xs">
               <span className="mb-1 block text-xs tracking-wide uppercase text-ink-mute">Currency</span>
@@ -702,7 +708,7 @@ export function CheckoutForm({
           </section>
 
           {enabledMethods.length > 1 ? (
-            <section aria-labelledby="payment-h" className="rounded-lg border border-ink/10 bg-cream p-5">
+            <section aria-labelledby="payment-h" className="min-w-0 rounded-lg border border-ink/10 bg-cream p-5">
               <h2 id="payment-h" className="font-display text-xl">Payment</h2>
               <div role="radiogroup" aria-label="Payment method" className="mt-4 flex flex-col gap-2">
                 {enabledMethods.map((m) => (
@@ -743,10 +749,10 @@ export function CheckoutForm({
           )}
         </div>
 
-        <div className="col-span-12 lg:col-span-5">
+        <div className="col-span-1 min-w-0 lg:col-span-5">
           <section
             aria-labelledby="review-h"
-            className="rounded-lg border border-ink/10 bg-cream p-5 lg:sticky lg:top-24"
+            className="min-w-0 rounded-lg border border-ink/10 bg-cream p-5 lg:sticky lg:top-24"
           >
             <h2 id="review-h" className="font-display text-xl">Review order</h2>
             <ul className="mt-4 flex flex-col gap-3">
@@ -761,28 +767,28 @@ export function CheckoutForm({
                     <span className="block truncate text-sm">{l.name}</span>
                     <span className="block text-xs text-ink-mute">× {l.qty}</span>
                   </span>
-                  <span className="text-sm font-medium">{price(l.lineBaseCents)}</span>
+                  <span className="shrink-0 text-right text-sm font-medium whitespace-nowrap">{price(l.lineBaseCents)}</span>
                 </li>
               ))}
             </ul>
-            <dl className="mt-4 space-y-1.5 border-t border-ink/10 pt-4 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-ink-soft">Subtotal</dt>
-                <dd>{price(shownSubtotal)}</dd>
+            <dl className="mt-4 min-w-0 space-y-1.5 border-t border-ink/10 pt-4 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="min-w-0 text-ink-soft">Subtotal</dt>
+                <dd className="shrink-0 text-right break-words">{price(shownSubtotal)}</dd>
               </div>
-              <div className="flex justify-between">
-                <dt className="text-ink-soft">Delivery{hasZone && zone ? ` (${zone.name})` : ""}</dt>
-                <dd>{hasZone ? price(shownFee) : "Choose your delivery area"}</dd>
+              <div className="flex justify-between gap-3">
+                <dt className="min-w-0 text-ink-soft break-words">Delivery{hasZone && zone ? ` (${zone.name})` : ""}</dt>
+                <dd className="shrink-0 text-right break-words">{hasZone ? price(shownFee) : "Choose your delivery area"}</dd>
               </div>
-              <div className="flex justify-between border-t border-ink/10 pt-2 text-base font-medium">
-                <dt>{paymentMethod === "paystack" ? "Total charged now" : "Total due on delivery"}</dt>
-                <dd className="font-display text-xl">
+              <div className="flex justify-between gap-3 border-t border-ink/10 pt-2 text-base font-medium">
+                <dt className="min-w-0">{paymentMethod === "paystack" ? "Total charged now" : "Total due on delivery"}</dt>
+                <dd className="font-display shrink-0 text-right text-lg break-words sm:text-xl">
                   {hasZone ? price(shownTotal) : `${price(shownSubtotal)} + ?`}
                 </dd>
               </div>
             </dl>
             {paymentMethod === "paystack" && hasZone ? (
-              <p role="status" className="mt-2 text-xs text-ink-mute">
+              <p role="status" className="mt-2 text-xs break-words text-ink-mute [overflow-wrap:anywhere]">
                 Paystack quote: {formatKobo(shownTotal)} — charged in naira, nothing due to the rider.
               </p>
             ) : null}
@@ -792,18 +798,18 @@ export function CheckoutForm({
               </p>
             ) : null}
             {drift ? (
-              <p role="status" className="mt-3 rounded-md bg-bronze/10 p-3 text-xs leading-relaxed text-ink">
+              <p role="status" className="mt-3 min-w-0 rounded-md bg-bronze/10 p-3 text-xs leading-relaxed break-words text-ink [overflow-wrap:anywhere]">
                 Prices changed since you reviewed — the new total is{" "}
                 <strong>{price(shownTotal)}</strong>. Review and confirm again.
               </p>
             ) : null}
             {formError ? (
-              <p role="alert" className="mt-4 rounded-md bg-clay/10 p-3 text-sm text-clay">
+              <p role="alert" className="mt-4 min-w-0 rounded-md bg-clay/10 p-3 text-sm break-words text-clay [overflow-wrap:anywhere]">
                 {formError}
               </p>
             ) : null}
             {sessionExpired ? (
-              <p role="alert" className="mt-4 rounded-md bg-clay/10 p-3 text-sm text-clay">
+              <p role="alert" className="mt-4 min-w-0 rounded-md bg-clay/10 p-3 text-sm break-words text-clay [overflow-wrap:anywhere]">
                 Your session expired —{" "}
                 <Link
                   href="/login?callbackURL=%2Fcheckout"
@@ -819,7 +825,7 @@ export function CheckoutForm({
               disabled={pending || !hasZone}
               aria-disabled={pending || !hasZone}
               title={!hasZone ? "Choose your delivery area to see your total" : undefined}
-              className="rounded-pill mt-4 w-full bg-ink px-6 py-3 text-sm text-cream transition-transform duration-200 hover:-translate-y-0.5 disabled:opacity-50"
+              className="rounded-pill mt-4 w-full min-w-0 bg-ink px-4 py-3 text-sm text-balance break-words whitespace-normal text-cream transition-transform duration-200 hover:-translate-y-0.5 disabled:opacity-50 sm:px-6"
             >
               {!hasZone
                 ? "Choose your delivery area to continue"
@@ -861,7 +867,7 @@ export function CheckoutForm({
 
       {showConfirm ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-ink/60 p-4"
           role="presentation"
           onClick={() => {
             if (!pending) setShowConfirm(false);
@@ -872,7 +878,8 @@ export function CheckoutForm({
             role="dialog"
             aria-modal="true"
             aria-labelledby="confirm-order-h"
-            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-cream p-6 shadow-xl"
+            data-lenis-prevent
+            className="my-auto max-h-[90vh] max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-lg overflow-y-auto rounded-lg bg-cream p-6 shadow-xl break-words [overflow-wrap:anywhere]"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="confirm-order-h" className="font-display text-2xl">
@@ -885,12 +892,12 @@ export function CheckoutForm({
             </p>
 
             {modalError ? (
-              <p role="alert" className="mt-4 rounded-md bg-clay/10 p-3 text-sm text-clay">
+              <p role="alert" className="mt-4 min-w-0 rounded-md bg-clay/10 p-3 text-sm break-words text-clay [overflow-wrap:anywhere]">
                 {modalError}
               </p>
             ) : null}
             {sessionExpired ? (
-              <p role="alert" className="mt-4 rounded-md bg-clay/10 p-3 text-sm text-clay">
+              <p role="alert" className="mt-4 min-w-0 rounded-md bg-clay/10 p-3 text-sm break-words text-clay [overflow-wrap:anywhere]">
                 Your session expired —{" "}
                 <Link
                   href="/login?callbackURL=%2Fcheckout"
@@ -902,9 +909,9 @@ export function CheckoutForm({
               </p>
             ) : null}
             {drift ? (
-              <div role="status" className="mt-4 rounded-md border border-bronze/30 bg-bronze/10 p-3 text-sm">
+              <div role="status" className="mt-4 min-w-0 rounded-md border border-bronze/30 bg-bronze/10 p-3 text-sm break-words">
                 <p className="font-medium">Prices changed since you reviewed.</p>
-                <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+                <p className="mt-1 min-w-0 text-xs leading-relaxed break-words text-ink-soft [overflow-wrap:anywhere]">
                   Old total{" "}
                   {priceWith(
                     drift.old.totalBaseCents,
@@ -954,79 +961,79 @@ export function CheckoutForm({
               </div>
             ) : null}
 
-            <dl className="mt-4 space-y-3 text-sm">
-              <div>
+            <dl className="mt-4 min-w-0 space-y-3 text-sm">
+              <div className="min-w-0">
                 <dt className="text-xs tracking-wide uppercase text-ink-mute">Deliver to</dt>
-                <dd className="mt-0.5">
-                  <strong>{form.name}</strong> · {form.phone}
+                <dd className="mt-0.5 min-w-0 break-words">
+                  <strong className="break-words">{form.name}</strong> · <span className="break-words">{form.phone}</span>
                   <br />
                   {form.street ? addressSummary : "Address incomplete"}
                   {form.notes.trim() ? (
                     <>
                       <br />
-                      <span className="text-ink-mute">Note: {form.notes.trim()}</span>
+                      <span className="break-words text-ink-mute">Note: {form.notes.trim()}</span>
                     </>
                   ) : null}
                 </dd>
               </div>
-              <div>
+              <div className="min-w-0">
                 <dt className="text-xs tracking-wide uppercase text-ink-mute">Delivery zone</dt>
-                <dd className="mt-0.5">
+                <dd className="mt-0.5 min-w-0 break-words">
                   {zone?.name ?? "—"} · {price(shownFee)}
                   {eta ? ` · arrives in ${eta}` : ""}
                 </dd>
               </div>
-              <div>
+              <div className="min-w-0">
                 <dt className="text-xs tracking-wide uppercase text-ink-mute">Payment method</dt>
-                <dd className="mt-0.5">
+                <dd className="mt-0.5 min-w-0 break-words">
                   {paymentMethod === "paystack" ? "Pay now with Paystack" : "Cash on delivery"}
                   {paymentMethod === "paystack" ? (
-                    <span className="mt-1 block text-xs text-ink-mute">
+                    <span className="mt-1 block text-xs break-words text-ink-mute">
                       Paystack quote: <strong className="text-ink">{formatKobo(shownTotal)}</strong>{" "}
                       ({PAYSTACK_CURRENCY}) — charged now, nothing due to the rider.
                     </span>
                   ) : (
-                    <span className="mt-1 block text-xs text-ink-mute">
+                    <span className="mt-1 block text-xs break-words text-ink-mute">
                       Keep {price(shownTotal)} ready — the rider calls before arriving.
                     </span>
                   )}
                 </dd>
               </div>
-              <div>
+              <div className="min-w-0">
                 <dt className="text-xs tracking-wide uppercase text-ink-mute">Currency</dt>
-                <dd className="mt-0.5">
+                <dd className="mt-0.5 min-w-0 break-words">
                   {currency.symbol} {currency.code} — {currency.label}
                 </dd>
               </div>
-              <div>
+              <div className="min-w-0">
                 <dt className="text-xs tracking-wide uppercase text-ink-mute">
                   Items ({lines.length})
                 </dt>
-                <dd className="mt-1">
-                  <ul className="flex flex-col gap-2">
+                <dd className="mt-1 min-w-0">
+                  <ul className="flex min-w-0 flex-col gap-2">
                     {lines.map((l) => (
-                      <li key={l.productId} className="flex items-center justify-between gap-3">
+                      <li key={l.productId} className="flex min-w-0 items-center justify-between gap-3">
                         <span className="min-w-0 flex-1 truncate">
                           {l.name} <span className="text-ink-mute">× {l.qty}</span>
                         </span>
-                        <span className="font-medium">{price(l.lineBaseCents)}</span>
+                        <span className="shrink-0 text-right font-medium whitespace-nowrap">{price(l.lineBaseCents)}</span>
                       </li>
                     ))}
                   </ul>
                 </dd>
               </div>
-              <div className="space-y-1.5 border-t border-ink/10 pt-3">
-                <div className="flex justify-between">
-                  <dt className="text-ink-soft">Subtotal</dt>
-                  <dd>{price(shownSubtotal)}</dd>
+              <div className="min-w-0 space-y-1.5 border-t border-ink/10 pt-3">
+                <div className="flex justify-between gap-3">
+                  <dt className="min-w-0 text-ink-soft">Subtotal</dt>
+                  <dd className="shrink-0 text-right break-words">{price(shownSubtotal)}</dd>
                 </div>
-                <div className="flex justify-between">
-                  <dt className="text-ink-soft">Delivery{zone ? ` (${zone.name})` : ""}</dt>
-                  <dd>{price(shownFee)}</dd>
+                <div className="flex justify-between gap-3">
+                  <dt className="min-w-0 break-words text-ink-soft">Delivery{zone ? ` (${zone.name})` : ""}</dt>
+                  <dd className="shrink-0 text-right break-words">{price(shownFee)}</dd>
                 </div>
-                <div className="flex justify-between border-t border-ink/10 pt-2 text-base font-medium">
-                  <dt>{paymentMethod === "paystack" ? "Total charged now" : "Total due on delivery"}</dt>
-                  <dd className="font-display text-xl">{price(shownTotal)}</dd>
+                <div className="flex justify-between gap-3 border-t border-ink/10 pt-2 text-base font-medium">
+                  <dt className="min-w-0">{paymentMethod === "paystack" ? "Total charged now" : "Total due on delivery"}</dt>
+                  <dd className="font-display shrink-0 text-right text-lg break-words sm:text-xl">{price(shownTotal)}</dd>
                 </div>
               </div>
             </dl>
@@ -1036,7 +1043,7 @@ export function CheckoutForm({
                 type="button"
                 disabled={pending}
                 onClick={() => setShowConfirm(false)}
-                className="rounded-pill border border-ink/20 px-5 py-2.5 text-sm text-ink disabled:opacity-50"
+                className="rounded-pill min-w-0 w-full border border-ink/20 px-5 py-2.5 text-sm break-words whitespace-normal text-ink disabled:opacity-50 sm:w-auto"
               >
                 Back to edit
               </button>
@@ -1045,7 +1052,7 @@ export function CheckoutForm({
                 ref={confirmButtonRef}
                 disabled={pending}
                 onClick={confirmPlaceOrder}
-                className="rounded-pill bg-ink px-5 py-2.5 text-sm text-cream disabled:opacity-50"
+                className="rounded-pill min-w-0 w-full bg-ink px-5 py-2.5 text-sm break-words whitespace-normal text-cream disabled:opacity-50 sm:w-auto"
               >
                 {pending ? (
                   payPhase === "verifying" ? (
