@@ -17,12 +17,42 @@ export const addressSchema = z.object({
   notes: z.string().trim().max(500, "Notes are limited to 500 characters.").optional(),
 });
 
-export const checkoutSchema = z.object({
-  address: addressSchema,
-  currencyCode: z.string().trim().min(1, "Choose a currency."),
-  clientToken: z.string().uuid("Something interrupted checkout — please reload and try again."),
-  zoneId: z.string().uuid("Choose a delivery zone."),
-});
+export const paymentMethodSchema = z.enum(["cod", "paystack"]);
+
+export const checkoutSchema = z
+  .object({
+    address: addressSchema,
+    currencyCode: z.string().trim().min(1, "Choose a currency."),
+    clientToken: z.string().uuid("Something interrupted checkout — please reload and try again."),
+    zoneId: z.string().uuid("Choose a delivery zone."),
+    paymentMethod: paymentMethodSchema.optional().default("cod"),
+    // Paystack inline-popup reference. Absent at init (server mints it);
+    // present when the shopper returns from the popup / verify step.
+    paystackReference: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .regex(/^[A-Za-z0-9_-]+$/, "Invalid payment reference.")
+      .optional(),
+  // Honest-checkout expectations: what the shopper reviewed. Server
+  // re-prices from the DB and returns PRICE_CHANGED on drift — these
+  // values are never trusted for charging.
+  expectedSubtotalBaseCents: z.number().int().min(0).optional(),
+  expectedShippingBaseCents: z.number().int().min(0).optional(),
+  expectedTotalBaseCents: z.number().int().min(0).optional(),
+  expectedRateToBase: z.string().trim().min(1).optional(),
+})
+  .superRefine((v, ctx) => {
+    // Conditional: a Paystack reference never applies to cash-on-delivery.
+    if (v.paymentMethod === "cod" && v.paystackReference) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["paystackReference"],
+        message: "Payment reference does not apply to cash on delivery.",
+      });
+    }
+  });
 
 export const cartLineSchema = z.object({
   productId: z.string().uuid(),
@@ -32,3 +62,4 @@ export const cartLineSchema = z.object({
 export type AddressInput = z.infer<typeof addressSchema>;
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export type CartLineInput = z.infer<typeof cartLineSchema>;
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;

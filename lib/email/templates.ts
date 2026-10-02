@@ -48,10 +48,27 @@ export type OrderEmailView = {
   shopAddress?: string;
   shopHours?: string;
   whatsappUrl?: string;
+  whatsappDisplay?: string;
   shippingUrl?: string;
   returnsUrl?: string;
   contactUrl?: string;
+  /** Paystack branch: cod (default) vs paystack. */
+  paymentMethod?: string;
+  /** Gateway reference for paid orders (receipt + ops). */
+  paystackRef?: string | null;
+  /** Masked card for the receipt (ops + buyer). */
+  cardLast4?: string | null;
+  cardBrand?: string | null;
 };
+
+/** True when the order was prepaid online (nothing due on delivery). */
+export function isPaidView(v: OrderEmailView): boolean {
+  return v.paymentMethod === "paystack";
+}
+
+function billingTagOf(v: OrderEmailView): string {
+  return isPaidView(v) ? "Paid online" : "Cash on delivery";
+}
 
 export type EmailTemplate = {
   subject: string;
@@ -169,8 +186,11 @@ function shell(opts: {
   extraHtml?: string;
   /** When true, render buyer lines without SKU. */
   hideSku?: boolean;
+  /** Overrides the footer billing tag (defaults to the view's method). */
+  billingTag?: string;
 }): string {
   const store = storeNameOf(opts.v);
+  const tag = opts.billingTag ?? billingTagOf(opts.v);
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${esc(opts.heading)}</title></head>
@@ -202,9 +222,10 @@ function shell(opts: {
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:${PAPER};padding:8px 36px 36px;text-align:center;">
         <tr><td style="border-top:1px solid ${PAPER_DEEP};padding-top:20px;text-align:left;">
           ${opts.extraHtml ?? ""}
-          <p style="font-family:${BODY};font-size:12px;color:${INK_SOFT};margin:0;">${esc(store)} &middot; Cash on delivery &middot; Questions? Write to ${esc(opts.v.supportEmail)}${opts.v.supportPhone ? ` or call ${esc(opts.v.supportPhone)}` : ""}</p>
-          ${opts.v.shopAddress ? `<p style="font-family:${BODY};font-size:12px;color:${INK_SOFT};margin:6px 0 0;">${esc(opts.v.shopAddress)}${opts.v.shopHours ? ` &middot; ${esc(opts.v.shopHours)}` : ""}</p>` : ""}
-          ${opts.v.shippingUrl || opts.v.returnsUrl || opts.v.contactUrl ? `<p style="font-family:${BODY};font-size:12px;margin:8px 0 0;">${opts.v.shippingUrl ? `<a href="${esc(opts.v.shippingUrl)}" style="color:${BRONZE};">Shipping</a>` : ""}${opts.v.returnsUrl ? ` &middot; <a href="${esc(opts.v.returnsUrl)}" style="color:${BRONZE};">Returns</a>` : ""}${opts.v.contactUrl ? ` &middot; <a href="${esc(opts.v.contactUrl)}" style="color:${BRONZE};">Contact</a>` : ""}</p>` : ""}
+          <p style="font-family:${BODY};font-size:12px;color:${INK_SOFT};margin:0;">${esc(store)} &middot; ${esc(tag)} &middot; Questions? Write to ${esc(opts.v.supportEmail)}${opts.v.supportPhone ? ` &middot; ${esc(opts.v.supportPhone)}` : ""}${opts.v.whatsappDisplay ? ` &middot; ${esc(opts.v.whatsappDisplay)}${opts.v.shopHours ? ` (${esc(opts.v.shopHours)})` : ""}` : ""}${opts.v.contactUrl ? ` &middot; <a href="${esc(opts.v.contactUrl)}" style="color:${BRONZE};">Contact the shop</a>` : ""}</p>
+          ${opts.v.shopAddress ? `<p style="font-family:${BODY};font-size:12px;color:${INK_SOFT};margin:6px 0 0;">${esc(opts.v.shopAddress)}</p>` : ""}
+          ${opts.v.whatsappUrl ? `<p style="font-family:${BODY};font-size:12px;margin:6px 0 0;"><a href="${esc(opts.v.whatsappUrl)}" style="color:${BRONZE};">${esc(opts.v.whatsappDisplay || "WhatsApp")}</a></p>` : ""}
+          ${opts.v.shippingUrl || opts.v.returnsUrl ? `<p style="font-family:${BODY};font-size:12px;margin:8px 0 0;">${opts.v.shippingUrl ? `<a href="${esc(opts.v.shippingUrl)}" style="color:${BRONZE};">Shipping</a>` : ""}${opts.v.returnsUrl ? ` &middot; <a href="${esc(opts.v.returnsUrl)}" style="color:${BRONZE};">Returns</a>` : ""}</p>` : ""}
         </td></tr>
       </table>
     </td></tr>
@@ -229,36 +250,83 @@ function buyerLinesText(v: OrderEmailView): string {
 }
 
 function textFooter(v: OrderEmailView): string {
-  const contact = `Support: ${v.supportEmail}${v.supportPhone ? ` / ${v.supportPhone}` : ""}`;
-  const shop = v.shopAddress ? `\n${v.shopAddress}${v.shopHours ? ` (${v.shopHours})` : ""}` : "";
-  const links = [v.shippingUrl, v.returnsUrl, v.contactUrl].filter(Boolean).join(" / ");
-  return `\n--\n${storeNameOf(v)} · Cash on delivery · ${contact}${shop}${links ? `\n${links}` : ""}`;
+  const contact = `Questions? Write to ${v.supportEmail}${v.supportPhone ? ` · ${v.supportPhone}` : ""}${v.whatsappDisplay ? ` · ${v.whatsappDisplay}${v.shopHours ? ` (${v.shopHours})` : ""}` : ""}${v.contactUrl ? ` · Contact the shop: ${v.contactUrl}` : ""}`;
+  const shop = v.shopAddress ? `\n${v.shopAddress}` : "";
+  const wa = v.whatsappUrl
+    ? `\nWhatsApp: ${v.whatsappDisplay ? `${v.whatsappDisplay} ` : ""}${v.whatsappUrl}`
+    : "";
+  const links = [v.shippingUrl, v.returnsUrl].filter(Boolean).join(" / ");
+  return `\n--\n${storeNameOf(v)} · ${billingTagOf(v)} · ${contact}${shop}${wa}${links ? `\n${links}` : ""}`;
 }
 
-/** 1. Buyer confirmation: totals in order currency, address, zone ETA, COD rider-call note. */
+/** Paid receipt line shared by buyer/owner/admin texts. */
+function paidLineText(v: OrderEmailView): string {
+  const bits = [`Paystack ref ${v.paystackRef ?? "—"}`];
+  if (v.cardBrand || v.cardLast4) {
+    bits.push(`${v.cardBrand ?? "Card"}${v.cardLast4 ? ` •• ${v.cardLast4}` : ""}`);
+  }
+  return bits.join(" · ");
+}
+
+/** Paid receipt block shared by buyer/owner/admin HTML. */
+function paidLineHtml(v: OrderEmailView): string {
+  const card =
+    v.cardBrand || v.cardLast4
+      ? ` &middot; ${esc(v.cardBrand ?? "Card")}${v.cardLast4 ? ` &middot;&middot; ${esc(v.cardLast4)}` : ""}`
+      : "";
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${PAPER_DEEP};margin:0 0 6px;">
+      <tr><td style="padding:14px 16px;">
+        <p style="font-family:${BODY};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${BRONZE};margin:0 0 6px;">Paid online — nothing due</p>
+        <p style="font-family:${BODY};font-size:14px;color:${INK};margin:0;">Paystack ref ${esc(v.paystackRef ?? "—")}${card}</p>
+      </td></tr>
+    </table>`;
+}
+
+/** 1. Buyer confirmation: COD cash-ready note OR paid-online receipt. */
 export function orderBuyerConfirm(v: OrderEmailView): EmailTemplate {
   const store = storeNameOf(v);
+  if (isPaidView(v)) {
+    const subject = `Order ${v.orderNumber} paid — receipt inside`;
+    const introHtml = `
+    <p style="margin:0 0 10px;">Dear ${esc(v.buyerName)}, thank you — your payment went through.</p>
+    <p style="margin:0 0 10px;">This order is <strong>paid in full (${esc(v.totalDisplay)})</strong> — nothing is due to the rider${v.etaDays ? ` (ETA ${esc(v.etaDays)}${v.address.zoneName ? `, ${esc(v.address.zoneName)}` : ""})` : ""}.</p>
+    ${paidLineHtml(v)}
+    ${ctaHtml("Track your order", v.orderUrl)}
+  `;
+    const html = shell({
+      preheader: `Order ${v.orderNumber} paid (${v.totalDisplay}) — nothing due on delivery.`,
+      eyebrow: "Payment receipt",
+      heading: "Payment received — thank you.",
+      introHtml,
+      v,
+      hideSku: true,
+    });
+    const text = `${store} — Order ${v.orderNumber} paid\n\nDear ${v.buyerName}, thank you — your payment went through.\nPaid in full (${v.totalDisplay}): nothing is due to the rider${v.etaDays ? ` (ETA ${v.etaDays}${v.address.zoneName ? `, ${v.address.zoneName}` : ""})` : ""}.\n${paidLineText(v)}\n\nTrack your order: ${v.orderUrl}\n\nITEMS\n${buyerLinesText(v)}\n\nSubtotal: ${v.subtotalDisplay}\nDelivery fee: ${v.shippingDisplay}\nTotal paid (${v.currencyCode}): ${v.totalDisplay}\n\nDELIVERY ADDRESS\n${v.address.name}\n${v.address.street}\n${v.address.city}, ${v.address.state} ${v.address.postal}\n${v.address.country}\n${v.address.phone}${v.address.zoneName ? `\nZone: ${v.address.zoneName}` : ""}${textFooter(v)}`;
+    return { subject, html, text };
+  }
   const subject = `Order ${v.orderNumber} confirmed — pay on delivery`;
   const introHtml = `
-    <p style="margin:0 0 10px;">Dear ${esc(v.buyerName)}, thank you — your order is confirmed.</p>
-    <p style="margin:0 0 10px;">This is <strong>Cash on delivery</strong>: please keep <strong>${esc(v.totalDisplay)}</strong> ready. Our rider will <strong>call ${esc(v.buyerPhone)}</strong> before arriving${v.etaDays ? ` (ETA ${esc(v.etaDays)}${v.address.zoneName ? `, ${esc(v.address.zoneName)}` : ""})` : ""}.</p>
+    <p style="margin:0 0 10px;">Dear ${esc(v.buyerName)}, thank you — we&apos;ve got your order.</p>
+    <p style="margin:0 0 10px;">This is <strong>cash on delivery</strong>: please keep <strong>${esc(v.totalDisplay)}</strong> ready. Our rider will <strong>call ${esc(v.buyerPhone)}</strong> before arriving${v.etaDays ? ` (ETA ${esc(v.etaDays)}${v.address.zoneName ? `, ${esc(v.address.zoneName)}` : ""})` : ""}.</p>
     ${ctaHtml("Track your order", v.orderUrl)}
   `;
   const html = shell({
     preheader: `Order ${v.orderNumber} confirmed — ${v.totalDisplay} cash on delivery.`,
     eyebrow: "Order confirmation",
-    heading: "Thank you — your order is on its way.",
+    heading: "Thank you — we've got your order.",
     introHtml,
     v,
     hideSku: true,
   });
-  const text = `${store} — Order ${v.orderNumber} confirmed\n\nDear ${v.buyerName}, thank you — your order is confirmed.\nCash on delivery: keep ${v.totalDisplay} ready. Our rider will call ${v.buyerPhone} before arriving${v.etaDays ? ` (ETA ${v.etaDays}${v.address.zoneName ? `, ${v.address.zoneName}` : ""})` : ""}.\n\nTrack your order: ${v.orderUrl}\n\nITEMS\n${buyerLinesText(v)}\n\nSubtotal: ${v.subtotalDisplay}\nDelivery fee: ${v.shippingDisplay}\nTotal (${v.currencyCode}): ${v.totalDisplay}\n\nDELIVERY ADDRESS\n${v.address.name}\n${v.address.street}\n${v.address.city}, ${v.address.state} ${v.address.postal}\n${v.address.country}\n${v.address.phone}${v.address.zoneName ? `\nZone: ${v.address.zoneName}` : ""}${textFooter(v)}`;
+  const text = `${store} — Order ${v.orderNumber} confirmed\n\nDear ${v.buyerName}, thank you — we've got your order.\nCash on delivery: keep ${v.totalDisplay} ready. Our rider will call ${v.buyerPhone} before arriving${v.etaDays ? ` (ETA ${v.etaDays}${v.address.zoneName ? `, ${v.address.zoneName}` : ""})` : ""}.\n\nTrack your order: ${v.orderUrl}\n\nITEMS\n${buyerLinesText(v)}\n\nSubtotal: ${v.subtotalDisplay}\nDelivery fee: ${v.shippingDisplay}\nTotal (${v.currencyCode}): ${v.totalDisplay}\n\nDELIVERY ADDRESS\n${v.address.name}\n${v.address.street}\n${v.address.city}, ${v.address.state} ${v.address.postal}\n${v.address.country}\n${v.address.phone}${v.address.zoneName ? `\nZone: ${v.address.zoneName}` : ""}${textFooter(v)}`;
   return { subject, html, text };
 }
 
 function ownerIntroHtml(v: OrderEmailView): string {
   return `
-    <p style="margin:0 0 10px;">A new order needs your confirmation.</p>
+    <p style="margin:0 0 10px;">${isPaidView(v) ? "A prepaid order is ready to confirm — money already landed." : "A new order needs your confirmation."}</p>
+    ${isPaidView(v) ? paidLineHtml(v) : ""}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${PAPER_DEEP};margin:0 0 6px;">
       <tr><td style="padding:14px 16px;">
         <p style="font-family:${BODY};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${BRONZE};margin:0 0 6px;">Buyer contact — call to confirm</p>
@@ -273,7 +341,8 @@ function ownerIntroHtml(v: OrderEmailView): string {
 }
 
 function ownerTextBody(v: OrderEmailView): string {
-  return `BUYER CONTACT (call to confirm)\n${v.buyerName} · ${v.buyerPhone}\n${v.buyerEmail}${v.address.notes ? `\nBuyer note: ${v.address.notes}` : ""}\n\nITEMS\n${linesText(v)}\n\nSubtotal: ${v.subtotalDisplay}\nDelivery fee: ${v.shippingDisplay}\nTotal (${v.currencyCode}): ${v.totalDisplay}\n\nFULL ADDRESS\n${v.address.name}\n${v.address.street}\n${v.address.city}, ${v.address.state} ${v.address.postal}\n${v.address.country}\n${v.address.phone}${v.address.zoneName ? `\nZone: ${v.address.zoneName}` : ""}${v.etaDays ? `\nETA: ${v.etaDays}` : ""}`;
+  const paidLine = isPaidView(v) ? `\n\nPAID ONLINE — nothing to collect\n${paidLineText(v)}` : "";
+  return `BUYER CONTACT (call to confirm)\n${v.buyerName} · ${v.buyerPhone}\n${v.buyerEmail}${v.address.notes ? `\nBuyer note: ${v.address.notes}` : ""}${paidLine}\n\nITEMS\n${linesText(v)}\n\nSubtotal: ${v.subtotalDisplay}\nDelivery fee: ${v.shippingDisplay}\nTotal (${v.currencyCode}): ${v.totalDisplay}\n\nFULL ADDRESS\n${v.address.name}\n${v.address.street}\n${v.address.city}, ${v.address.state} ${v.address.postal}\n${v.address.country}\n${v.address.phone}${v.address.zoneName ? `\nZone: ${v.address.zoneName}` : ""}${v.etaDays ? `\nETA: ${v.etaDays}` : ""}`;
 }
 
 /** 2. Owner fulfillment slip: buyer contact prominent, full address, confirm CTA. */
@@ -299,7 +368,7 @@ export function orderAdminDigest(v: OrderEmailView): EmailTemplate {
         <p style="font-family:${BODY};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${INK_SOFT};margin:0 0 6px;">Ops hint</p>
         <p style="font-family:${BODY};font-size:13px;line-height:1.6;color:${INK};margin:0;">
           Delivery updates for this order are in Admin → Emails.
-          Open <a href="${esc(v.adminUrl)}" style="color:${BRONZE};">Open order</a> to review or resend.
+          <a href="${esc(v.adminUrl)}" style="color:${BRONZE};">Open order</a> to review or resend.
         </p>
       </td></tr>
     </table>`;

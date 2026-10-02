@@ -96,9 +96,10 @@ export async function getOrderDetail(
   if (!order) {
     return { ok: false, code: "NOT_FOUND", message: "Order not found." };
   }
-  const isOwner = order.userId === sp.user.id;
-  const isAdmin = sp.profile.role === "admin";
-  if (!isOwner && !isAdmin) {
+  // Owner-only via the shopper session. Admins read orders through the
+  // isolated admin session path (getAdminSession → lib/actions/admin.ts),
+  // never through a shopper profiles.role branch here.
+  if (order.userId !== sp.user.id) {
     return { ok: false, code: "FORBIDDEN", message: "You cannot view this order." };
   }
 
@@ -143,8 +144,11 @@ export async function getOrderDetail(
 }
 
 /**
- * Shopper cancel — pending only, within BUYER_CANCEL_WINDOW_MS of placement.
- * Restocks lines (same compensate pattern as admin cancel, no db.transaction).
+ * Shopper cancel — pending (COD) or awaiting/failed (prepaid, nothing
+ * captured yet), within BUYER_CANCEL_WINDOW_MS of placement. Restocks only
+ * when stock was actually decremented (COD pending / paid rails); unpaid
+ * prepaid orders never touched stock. Paid orders go through the shop
+ * (refund path) — never silently cancellable here.
  */
 export async function cancelOrder(
   id: unknown,
@@ -163,28 +167,48 @@ export async function cancelOrder(
   if (!order || order.userId !== sp.user.id) {
     return { ok: false, code: "NOT_FOUND", message: "Order not found." };
   }
-  if (!canTransition(order.status as OrderStatus, "cancelled")) {
+  const method = (order as { paymentMethod?: string | null }).paymentMethod ?? "cod";
+  const payStatus = (order as { paymentStatus?: string | null }).paymentStatus ?? "unpaid";
+  if (payStatus === "paid" || order.status === "paid_online") {
     return {
       ok: false,
       code: "INVALID_TRANSITION",
-      message: "Only pending orders can be cancelled here — contact support for help.",
+      message: "This order is already paid — contact the shop and we will refund or help.",
+    };
+  }
+  if (!canTransition(order.status as OrderStatus, "cancelled", method)) {
+    return {
+      ok: false,
+      code: "INVALID_TRANSITION",
+      message: "Only pending, awaiting-payment or failed orders can be cancelled here — contact the shop for help.",
     };
   }
   if (!isBuyerCancellable(order.status, order.createdAt)) {
     return {
       ok: false,
       code: "WINDOW_EXPIRED",
-      message: "The 12-hour free-cancel window has passed — contact support and we will help.",
+      message: "The 12-hour free-cancel window has passed — contact the shop and we will help.",
     };
   }
   const lines = await db
     .select()
     .from(orderItems)
     .where(eq(orderItems.orderId, order.id));
-  for (const l of lines) {
-    await db.execute(
-      sql`UPDATE products SET stock = stock + ${l.qty} WHERE id = ${l.productId}`,
-    );
+  // Unpaid prepaid orders (awaiting/failed) never decremented stock — cancel
+  // without restocking so shelves are never inflated.
+  const decrementedStock =
+    method !== "paystack" || payStatus === "paid" || order.status === "paid_online";
+  if (decrementedStock) {
+    for (const l of lines) {
+      await db.execute(
+        sql`UPDATE products SET stock = stock + ${l.qty} WHERE id = ${l.productId}`,
+      );
+    }
+  } else {
+    await db
+      .update(orders)
+      .set({ paymentStatus: "failed" })
+      .where(eq(orders.id, order.id));
   }
   await db.update(orders).set({ status: "cancelled" }).where(eq(orders.id, order.id));
   return { ok: true, data: { id: order.id } };

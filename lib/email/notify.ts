@@ -20,6 +20,7 @@ import {
   shippingZones,
 } from "@/lib/db/schema";
 import { formatDisplay, toDisplay } from "@/lib/money";
+import { CONTACT, appUrl as getAppUrl, supportEmail } from "@/lib/contact";
 import { getEmailProvider, providerKey } from "@/lib/email";
 import { EmailSendError } from "@/lib/email/provider";
 import {
@@ -90,11 +91,11 @@ function withJitter(ms: number): number {
 }
 
 function firstAdminEmail(): string | null {
-  const first = (process.env.ADMIN_EMAILS ?? "")
+  const first = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)[0];
-  return first ?? null;
+  return first || null;
 }
 
 function ownerEmailOf(fallback: string): string {
@@ -106,7 +107,7 @@ function ownerEmailOf(fallback: string): string {
 function isSandboxMailgun(): boolean {
   return (
     (providerKey() || "mailgun") === "mailgun" &&
-    (process.env.MAILGUN_DOMAIN ?? "").includes("sandbox")
+    (process.env.MAILGUN_DOMAIN || "").includes("sandbox")
   );
 }
 
@@ -218,9 +219,24 @@ async function buildView(
     [...tiers].reverse()[0] ??
     null;
 
-  const appUrl = (process.env.APP_URL ?? "").trim() || "http://localhost:3000";
+  // Localhost fallback is dev-only (lib/contact.ts); prod sets APP_URL or NEXT_PUBLIC_APP_URL.
+  const baseUrl = getAppUrl();
   const support = ownerEmailOf(order.email);
-  const { CONTACT } = await import("@/lib/contact");
+  // Payment columns ship with migration 0002; read defensively so a stale
+  // DB still sends the COD copy instead of crashing the worker.
+  const paymentMethod =
+    typeof (order as { paymentMethod?: unknown }).paymentMethod === "string"
+      ? (order as { paymentMethod?: string }).paymentMethod
+      : "cod";
+  const paystackRef =
+    typeof (order as { paystackRef?: unknown }).paystackRef === "string"
+      ? (order as { paystackRef?: string | null }).paystackRef
+      : null;
+  const auth =
+    (order as { paystackAuth?: unknown }).paystackAuth as {
+      last4?: string;
+      brand?: string;
+    } | null;
   return {
     orderNumber: order.number,
     buyerName: order.address.name,
@@ -243,17 +259,22 @@ async function buildView(
     shippingDisplay: money(order.shippingBaseCents),
     totalDisplay: money(order.totalBaseCents),
     etaDays: tier?.etaDays ?? null,
-    orderUrl: `${appUrl}/orders/${order.id}`,
-    confirmUrl: `${appUrl}/admin/orders?order=${order.id}`,
-    adminUrl: `${appUrl}/admin/orders?order=${order.id}`,
+    orderUrl: `${baseUrl}/orders/${order.id}`,
+    confirmUrl: `${baseUrl}/admin/orders?order=${order.id}`,
+    adminUrl: `${baseUrl}/admin/orders?order=${order.id}`,
     supportEmail: support,
     supportPhone: CONTACT.phoneDisplay,
     shopAddress: CONTACT.address,
     shopHours: CONTACT.hours,
     whatsappUrl: CONTACT.whatsappUrl,
-    shippingUrl: `${appUrl}/shipping`,
-    returnsUrl: `${appUrl}/returns`,
-    contactUrl: `${appUrl}/contact`,
+    whatsappDisplay: CONTACT.whatsappDisplay,
+    shippingUrl: `${baseUrl}/shipping`,
+    returnsUrl: `${baseUrl}/returns`,
+    contactUrl: `${baseUrl}/contact`,
+    paymentMethod,
+    paystackRef,
+    cardLast4: auth?.last4 ?? null,
+    cardBrand: auth?.brand ?? null,
   };
 }
 
@@ -327,7 +348,7 @@ async function sendKind(
   const provider = getEmailProvider();
   let lastError = "unknown error";
   // Reply-to = support mailbox so buyer replies reach the shop, not the sandbox sender.
-  const replyTo = toEmail.includes("@") ? (await import("@/lib/contact")).supportEmail() : undefined;
+  const replyTo = toEmail.includes("@") ? supportEmail() : undefined;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const res = await provider.send({

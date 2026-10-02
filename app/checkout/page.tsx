@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
@@ -10,12 +11,14 @@ import { requireUser } from "@/lib/auth-session";
 import { getCart } from "@/lib/actions/cart";
 import { CheckoutForm } from "@/components/checkout/CheckoutForm";
 import { CONTACT, supportEmail } from "@/lib/contact";
+import { getPaymentMethodsSafe } from "@/lib/payments";
+import { paystackPublicKey } from "@/lib/paystack";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Checkout — Maison",
-  description: "Cash on delivery checkout with live zone fees.",
+  description: "Checkout with live zone fees — cash on delivery or Paystack.",
 };
 
 export default async function CheckoutPage() {
@@ -24,10 +27,11 @@ export default async function CheckoutPage() {
   const cartRes = await getCart();
   if (!cartRes.ok || cartRes.data.lines.length === 0) redirect("/cart");
 
-  const [zoneRows, rateRows, curRows] = await Promise.all([
+  const [zoneRows, rateRows, curRows, methodRows] = await Promise.all([
     db.select().from(shippingZones).where(eq(shippingZones.active, true)),
     db.select().from(shippingRates),
     db.select().from(currencies).where(eq(currencies.active, true)),
+    getPaymentMethodsSafe(),
   ]);
 
   const zones = zoneRows.map((z) => ({
@@ -69,23 +73,44 @@ export default async function CheckoutPage() {
   const defaultCurrency =
     boxedCurrencies.find((c) => c.isBase) ?? boxedCurrencies[0]!;
 
+  const liveMethods = methodRows.filter((m) => m.enabled);
+  const headline =
+    liveMethods.length === 1 && liveMethods[0]!.code === "paystack"
+      ? "Pay now"
+      : liveMethods.length === 1 && liveMethods[0]!.code === "cod"
+        ? "Cash on delivery"
+        : "Checkout";
+
   return (
     <main className="editorial-grid py-10 md:py-14">
       <div className="col-span-12">
         <p className="text-xs tracking-[0.3em] uppercase text-bronze">Checkout</p>
-        <h1 className="font-display mt-2 text-4xl md:text-6xl">Cash on delivery</h1>
+        <h1 className="font-display mt-2 text-4xl md:text-6xl">{headline}</h1>
         <p className="mt-3 max-w-prose text-ink-soft">
-          Pay the rider on arrival — they will call before delivery. Need help?{" "}
-          <a href={CONTACT.phoneHref} className="text-bronze-deep underline underline-offset-4">
-            {CONTACT.phoneDisplay}
-          </a>{" "}
-          ·{" "}
+          Pay the rider on arrival — they call before delivery. Questions? Write to{" "}
           <a
             href={`mailto:${supportEmail()}`}
             className="text-bronze-deep underline underline-offset-4"
           >
             {supportEmail()}
-          </a>
+          </a>{" "}
+          ·{" "}
+          <a href={CONTACT.phoneHref} className="text-bronze-deep underline underline-offset-4">
+            {CONTACT.phoneDisplay}
+          </a>{" "}
+          ·{" "}
+          <a
+            href={CONTACT.whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-bronze-deep underline underline-offset-4"
+          >
+            {CONTACT.whatsappDisplay}
+          </a>{" "}
+          ({CONTACT.hours}) ·{" "}
+          <Link href="/contact" className="text-bronze-deep underline underline-offset-4">
+            Contact the shop
+          </Link>
           .
         </p>
       </div>
@@ -105,6 +130,8 @@ export default async function CheckoutPage() {
             lineBaseCents: l.lineBaseCents,
           }))}
           subtotalBaseCents={cartRes.data.subtotalBaseCents}
+          paymentMethods={methodRows}
+          paystackPublicKey={paystackPublicKey()}
         />
       </div>
     </main>
