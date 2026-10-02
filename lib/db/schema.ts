@@ -4,6 +4,7 @@
 // Money rule: integer base cents against the `currencies` row with
 // is_base=true (resolved at runtime, never hardcoded).
 export * from "./auth-schema";
+export * from "./admin-auth-schema";
 
 import {
   pgTable,
@@ -155,7 +156,14 @@ export const cartItems = pgTable(
   (t) => [uniqueIndex("cart_items_pk").on(t.cartId, t.productId)],
 );
 
-// --- Orders (COD; totals frozen with FX snapshot) ---
+// --- Payment methods (admin toggle; COD on by default, Paystack off) ---
+export const paymentMethods = pgTable("payment_methods", {
+  code: text("code").primaryKey(), // cod | paystack
+  enabled: boolean("enabled").default(true).notNull(),
+  label: text("label").notNull(),
+});
+
+// --- Orders (COD + Paystack; totals frozen with FX snapshot) ---
 export const orders = pgTable(
   "orders",
   {
@@ -187,6 +195,15 @@ export const orders = pgTable(
       }>()
       .notNull(),
     clientToken: text("client_token").notNull().unique(), // idempotency key
+    paymentMethod: text("payment_method").default("cod").notNull(), // cod | paystack
+    paymentStatus: text("payment_status").default("unpaid").notNull(), // unpaid | awaiting | paid | failed | refunded
+    paystackRef: text("paystack_ref").unique(),
+    paidAt: timestamp("paid_at"),
+    paystackAuth: jsonb("paystack_auth").$type<{
+      last4?: string;
+      brand?: string;
+      channel?: string;
+    }>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("orders_user_status_idx").on(t.userId, t.status, t.createdAt)],

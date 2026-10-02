@@ -112,7 +112,7 @@ function productImages(cat: string, room: string, n: number): { url: string }[] 
 }
 import { eq } from "drizzle-orm";
 import { db } from "../lib/db";
-import { currencies, shippingZones, shippingRates, products } from "../lib/db/schema";
+import { currencies, shippingZones, shippingRates, products, paymentMethods } from "../lib/db/schema";
 
 const ROOMS = ["living", "bedroom", "dining", "bath", "decor", "outdoor"] as const;
 const CATS = ["furniture", "lighting", "textiles", "decor", "tableware"] as const;
@@ -137,6 +137,16 @@ const slugify = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 async function main() {
+  // --- Payment methods: COD on by default, Paystack off until keys land. ---
+  // Idempotent (onConflictDoNothing preserves admin toggles on re-runs).
+  await db
+    .insert(paymentMethods)
+    .values([
+      { code: "cod", enabled: true, label: "Cash on Delivery" },
+      { code: "paystack", enabled: false, label: "Paystack" },
+    ])
+    .onConflictDoNothing();
+
   // --- Currencies: exactly one is_base. Code never names a code. ---
   await db
     .insert(currencies)
