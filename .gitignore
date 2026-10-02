@@ -7,6 +7,8 @@ out/
 .env.local
 .env*.local
 # drizzle (migrations + meta are committed; same chain for Docker-dev and Neon-prod)
+# ts build info (local artifact, never committed)
+tsconfig.tsbuildinfo
 # logs
 *.log
 .DS_Store
