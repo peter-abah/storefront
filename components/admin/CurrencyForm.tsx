@@ -74,42 +74,65 @@ export function CurrencyForm({ currencies }: { currencies: Currency[] }) {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-ink/10 bg-cream">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink-mute">
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Symbol · Label</th>
-                <th className="px-4 py-3">Rate to base currency</th>
-                <th className="px-4 py-3">Flags</th>
-                <th className="px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currencies.map((c) => (
-                <tr key={c.code} className="border-b border-ink/5 last:border-0">
-                  <td className="px-4 py-3 font-medium">{c.code}</td>
-                  <td className="px-4 py-3 text-ink-soft">{c.symbol} · {c.label}</td>
-                  <td className="px-4 py-3">{c.rateToBase}</td>
-                  <td className="px-4 py-3">
-                    <span className="flex flex-wrap gap-1 text-xs">
-                      {c.isBase ? <span className="rounded-pill bg-bronze/15 px-2 py-0.5 text-bronze-deep">Base</span> : null}
-                      {c.active ? <span className="rounded-pill bg-moss/15 px-2 py-0.5 text-moss">active</span> : <span className="rounded-pill bg-ink/10 px-2 py-0.5 text-ink-mute">off</span>}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => startEdit(c)} className="rounded-pill border border-ink/15 px-3 py-1 text-xs">Edit</button>
-                      {!c.isBase && c.active ? (
-                        <button type="button" onClick={() => makeBase(c.code)} className="rounded-pill border border-bronze/40 px-3 py-1 text-xs text-bronze-deep">Make base</button>
-                      ) : null}
-                    </span>
-                  </td>
+        <>
+          {/* Mobile card-list fallback under sm; table kept for sm+ with overflow-x-auto. */}
+          <ul className="flex flex-col gap-3 sm:hidden">
+            {currencies.map((c) => (
+              <li key={c.code} className="rounded-lg border border-ink/10 bg-cream p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium">{c.code} <span className="font-normal text-ink-soft">{c.symbol} · {c.label}</span></p>
+                  <span className="flex flex-wrap gap-1 text-xs">
+                    {c.isBase ? <span className="rounded-pill bg-bronze/15 px-2 py-0.5 text-bronze-deep">Base</span> : null}
+                    {c.active ? <span className="rounded-pill bg-moss/15 px-2 py-0.5 text-moss">active</span> : <span className="rounded-pill bg-ink/10 px-2 py-0.5 text-ink-mute">off</span>}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-ink-soft">Rate to base: {c.rateToBase}</p>
+                <span className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => startEdit(c)} className="rounded-pill border border-ink/15 px-3 py-1 text-xs">Edit</button>
+                  {!c.isBase && c.active ? (
+                    <button type="button" onClick={() => makeBase(c.code)} className="rounded-pill border border-bronze/40 px-3 py-1 text-xs text-bronze-deep">Make base</button>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto rounded-lg border border-ink/10 bg-cream sm:block">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink-mute">
+                  <th scope="col" className="px-4 py-3">Code</th>
+                  <th scope="col" className="px-4 py-3">Symbol · Label</th>
+                  <th scope="col" className="px-4 py-3">Rate to base currency</th>
+                  <th scope="col" className="px-4 py-3">Flags</th>
+                  <th scope="col" className="px-4 py-3">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {currencies.map((c) => (
+                  <tr key={c.code} className="border-b border-ink/5 last:border-0">
+                    <td className="px-4 py-3 font-medium">{c.code}</td>
+                    <td className="px-4 py-3 text-ink-soft">{c.symbol} · {c.label}</td>
+                    <td className="px-4 py-3">{c.rateToBase}</td>
+                    <td className="px-4 py-3">
+                      <span className="flex flex-wrap gap-1 text-xs">
+                        {c.isBase ? <span className="rounded-pill bg-bronze/15 px-2 py-0.5 text-bronze-deep">Base</span> : null}
+                        {c.active ? <span className="rounded-pill bg-moss/15 px-2 py-0.5 text-moss">active</span> : <span className="rounded-pill bg-ink/10 px-2 py-0.5 text-ink-mute">off</span>}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => startEdit(c)} className="rounded-pill border border-ink/15 px-3 py-1 text-xs">Edit</button>
+                        {!c.isBase && c.active ? (
+                          <button type="button" onClick={() => makeBase(c.code)} className="rounded-pill border border-bronze/40 px-3 py-1 text-xs text-bronze-deep">Make base</button>
+                        ) : null}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <form onSubmit={submit} className="mt-6 grid grid-cols-1 gap-4 rounded-lg border border-ink/10 bg-cream p-5 sm:grid-cols-2" noValidate>

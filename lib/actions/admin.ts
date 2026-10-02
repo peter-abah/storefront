@@ -4,25 +4,30 @@ import { and, asc, count, desc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
+  cartItems,
   currencies,
   emailLog,
   orderItems,
   orders,
+  paymentMethods,
   products,
   shippingRates,
   shippingZones,
 } from "@/lib/db/schema";
-import { getSessionProfile, type SessionProfile } from "@/lib/auth-session";
-import { canTransition, ORDER_STATUSES, type OrderStatus } from "@/lib/order-machine";
+import { getAdminSession, type AdminSession } from "@/lib/auth-session";
+import { canTransition, isPrepaid, ORDER_STATUSES, type OrderStatus } from "@/lib/order-machine";
 import { EMAIL_KINDS, NotifyError, resendFailed } from "@/lib/email/notify";
+import { paystackSecret, refundPaystackTransaction, PaystackError } from "@/lib/paystack";
 import type { ActionResult } from "./cart";
 
 const ADMIN_PAGE_SIZE = 20;
 
-async function requireAdmin(): Promise<SessionProfile | null> {
-  const sp = await getSessionProfile();
-  if (!sp || sp.profile.role !== "admin") return null;
-  return sp;
+// Isolated admin gate — adminAuth (admin.session_token) only.
+// No shopper getSessionProfile / profiles.role dependency.
+async function requireAdmin(): Promise<AdminSession | null> {
+  const s = await getAdminSession();
+  if (!s) return null;
+  return s;
 }
 
 function forbidden<T>(): ActionResult<T> {
@@ -235,6 +240,22 @@ export async function toggleProductActive(
   return { ok: true, data: { id: current.id, active: value } };
 }
 
+export async function getProductImpact(
+  id: unknown,
+): Promise<ActionResult<{ stock: number; active: boolean; cartCount: number }>> {
+  const sp = await requireAdmin();
+  if (!sp) return forbidden();
+  const parsed = z.string().uuid().safeParse(id);
+  if (!parsed.success) return { ok: false, code: "INVALID_INPUT", message: "Invalid product." };
+  const prod = (await db.select().from(products).where(eq(products.id, parsed.data)).limit(1))[0];
+  if (!prod) return { ok: false, code: "NOT_FOUND", message: "Product not found." };
+  const [{ value }] = await db
+    .select({ value: count() })
+    .from(cartItems)
+    .where(eq(cartItems.productId, parsed.data));
+  return { ok: true, data: { stock: prod.stock, active: prod.active, cartCount: value ?? 0 } };
+}
+
 export async function adjustStock(
   id: unknown,
   delta: unknown,
@@ -298,19 +319,92 @@ export async function transitionOrder(
   if (!order) return { ok: false, code: "NOT_FOUND", message: "Order not found." };
   const from = order.status as OrderStatus;
   const target = parsedTo.data;
+  const method = (order as { paymentMethod?: string | null }).paymentMethod ?? "cod";
+  const payStatus = (order as { paymentStatus?: string | null }).paymentStatus ?? "unpaid";
   if (from === target) return { ok: true, data: { id: order.id, status: from } };
-  if (!canTransition(from, target)) {
-    return { ok: false, code: "INVALID_TRANSITION", message: `Cannot move ${from} → ${target}. Follow the lifecycle: pending → confirmed → out for delivery → delivered → paid.` };
+  if (!canTransition(from, target, method)) {
+    const prepaidHint =
+      target === "paid_on_delivery" && isPrepaid(method)
+        ? " Prepaid orders never collect cash — delivered is the final step once paid."
+        : "";
+    return { ok: false, code: "INVALID_TRANSITION", message: `Cannot move ${from} → ${target}. Follow the lifecycle: pending → confirmed → out for delivery → delivered → paid.${prepaidHint}` };
   }
   if (target === "cancelled") {
     const lines = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+    const prepaidPaid =
+      isPrepaid(method) &&
+      (payStatus === "paid" ||
+        (["paid_online", "confirmed", "out_for_delivery", "delivered"] as string[]).includes(from));
+    if (isPrepaid(method) && !prepaidPaid) {
+      // Nothing was ever decremented for unpaid prepaid orders — no restock.
+      await db
+        .update(orders)
+        .set({ status: "cancelled", paymentStatus: "failed" })
+        .where(eq(orders.id, order.id));
+      return { ok: true, data: { id: order.id, status: "cancelled" } };
+    }
     for (const l of lines) {
+      const prod = (
+        await db.select({ id: products.id }).from(products).where(eq(products.id, l.productId)).limit(1)
+      )[0];
+      if (!prod) {
+        console.warn(
+          `[transitionOrder] missing product ${l.productId} for order ${order.id} — skipping restock for this line`,
+        );
+        continue;
+      }
       await db.execute(sql`UPDATE products SET stock = stock + ${l.qty} WHERE id = ${l.productId}`);
+    }
+    if (prepaidPaid) {
+      // Cancel-prepaid: money moved, so refund via the Paystack API, then
+      // park the order as refunded (never cancelled-with-money).
+      const ref = (order as { paystackRef?: string | null }).paystackRef ?? null;
+      const secret = paystackSecret();
+      if (!ref || !secret) {
+        await db
+          .update(orders)
+          .set({ status: "cancelled", paymentStatus: "paid" })
+          .where(eq(orders.id, order.id));
+        return {
+          ok: false,
+          code: "MANUAL_REFUND",
+          message: `Order restocked and cancelled, but no automatic refund was possible${!ref ? " (missing payment reference)" : " (Paystack key not configured)"} — refund ${ref ?? order.number} manually in the Paystack dashboard.`,
+        };
+      }
+      try {
+        await refundPaystackTransaction(ref, secret);
+      } catch (e) {
+        const msg = e instanceof PaystackError ? e.message : ((e as Error)?.message ?? "Refund failed.");
+        await db
+          .update(orders)
+          .set({ status: "cancelled", paymentStatus: "paid" })
+          .where(eq(orders.id, order.id));
+        return {
+          ok: false,
+          code: "REFUND_FAILED",
+          message: `Order restocked and cancelled, but the Paystack refund failed (${msg}) — refund ${ref} manually in the dashboard.`,
+        };
+      }
+      await db
+        .update(orders)
+        .set({ status: "refunded", paymentStatus: "refunded" })
+        .where(eq(orders.id, order.id));
+      return { ok: true, data: { id: order.id, status: "refunded" } };
     }
     await db.update(orders).set({ status: "cancelled" }).where(eq(orders.id, order.id));
     return { ok: true, data: { id: order.id, status: "cancelled" } };
   }
-  await db.update(orders).set({ status: target }).where(eq(orders.id, order.id));
+  const paySync: Partial<Record<OrderStatus, string>> = {
+    awaiting_payment: "awaiting",
+    paid_online: "paid",
+    failed: "failed",
+    refunded: "refunded",
+  };
+  const nextPay = paySync[target];
+  await db
+    .update(orders)
+    .set(nextPay ? { status: target, paymentStatus: nextPay } : { status: target })
+    .where(eq(orders.id, order.id));
   return { ok: true, data: { id: order.id, status: target } };
 }
 
@@ -321,12 +415,32 @@ export type AdminStats = {
   outForDeliveryCount: number;
   lowStockCount: number;
   codCollectedCents: number;
+  onlineCollectedCents: number;
   failedEmailCount: number;
 };
 
 export async function getAdminStats(): Promise<ActionResult<AdminStats>> {
   const sp = await requireAdmin();
   if (!sp) return forbidden();
+  // Online collected = prepaid orders past payment on the fulfillment rail.
+  // Defensive: a DB without the payment columns still reports COD + zeros.
+  let onlineCollectedCents = 0;
+  try {
+    const [onlineRows] = await Promise.all([
+      db
+        .select({ value: sql<number>`coalesce(sum(${orders.totalBaseCents}), 0)::int` })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.paymentMethod, "paystack"),
+            sql`${orders.status} IN ('paid_online','confirmed','out_for_delivery','delivered')`,
+          ),
+        ),
+    ]);
+    onlineCollectedCents = onlineRows[0]?.value ?? 0;
+  } catch {
+    onlineCollectedCents = 0;
+  }
   const [pendingRows, outRows, lowRows, codRows, failedRows] = await Promise.all([
     db.select({ value: count() }).from(orders).where(eq(orders.status, "pending")),
     db.select({ value: count() }).from(orders).where(eq(orders.status, "out_for_delivery")),
@@ -344,6 +458,7 @@ export async function getAdminStats(): Promise<ActionResult<AdminStats>> {
       outForDeliveryCount: outRows[0]?.value ?? 0,
       lowStockCount: lowRows[0]?.value ?? 0,
       codCollectedCents: codRows[0]?.value ?? 0,
+      onlineCollectedCents,
       failedEmailCount: failedRows[0]?.value ?? 0,
     },
   };
@@ -541,6 +656,56 @@ export async function deleteRate(id: unknown): Promise<ActionResult<{ id: string
   if (!existing) return { ok: false, code: "NOT_FOUND", message: "Rate not found." };
   await db.delete(shippingRates).where(eq(shippingRates.id, parsed.data));
   return { ok: true, data: { id: parsed.data } };
+}
+
+// --- Payment methods (admin toggle; at least one stays on) ---
+
+export type AdminPaymentMethod = typeof paymentMethods.$inferSelect;
+
+export async function listPaymentMethods(): Promise<ActionResult<AdminPaymentMethod[]>> {
+  const sp = await requireAdmin();
+  if (!sp) return forbidden();
+  try {
+    const rows = await db.select().from(paymentMethods).orderBy(asc(paymentMethods.code));
+    return { ok: true, data: rows };
+  } catch {
+    return {
+      ok: false,
+      code: "DB_MISSING",
+      message: "payment_methods is not migrated yet — run the migrations, checkout stays COD-only until then.",
+    };
+  }
+}
+
+export async function setPaymentMethodEnabled(
+  code: unknown,
+  enabled: unknown,
+): Promise<ActionResult<{ code: string; enabled: boolean }>> {
+  const sp = await requireAdmin();
+  if (!sp) return forbidden();
+  const parsedCode = z.enum(["cod", "paystack"]).safeParse(code);
+  const parsedEnabled = z.boolean().safeParse(enabled);
+  if (!parsedCode.success || !parsedEnabled.success) {
+    return { ok: false, code: "INVALID_INPUT", message: "Method must be cod or paystack, enabled true or false." };
+  }
+  const next = parsedEnabled.data;
+  let rows: AdminPaymentMethod[];
+  try {
+    rows = await db.select().from(paymentMethods);
+  } catch {
+    return {
+      ok: false,
+      code: "DB_MISSING",
+      message: "payment_methods is not migrated yet — run the migrations first.",
+    };
+  }
+  const row = rows.find((r) => r.code === parsedCode.data);
+  if (!row) return { ok: false, code: "NOT_FOUND", message: "Payment method not found." };
+  if (!next && !rows.some((r) => r.code !== row.code && r.enabled)) {
+    return { ok: false, code: "FORBIDDEN", message: "Keep at least one payment method on — shoppers need a way to pay." };
+  }
+  await db.update(paymentMethods).set({ enabled: next }).where(eq(paymentMethods.code, row.code));
+  return { ok: true, data: { code: row.code, enabled: next } };
 }
 
 // --- Email log ---

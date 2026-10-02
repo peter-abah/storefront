@@ -84,17 +84,44 @@ export function EmailLogTable({ logs, total, page, perPage, orderNumber }: Props
           ) : null}
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-ink/10 bg-cream">
+        <>
+        <ul className="mt-6 flex flex-col gap-3 sm:hidden">
+          {logs.map((l) => (
+            <li key={l.id} className="rounded-lg border border-ink/10 bg-cream p-4 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium">{l.orderNumber ?? l.orderId.slice(0, 8)}</span>
+                <span className={`rounded-pill inline-block px-3 py-1 text-xs ${pill(l.status)}`}>{l.status}</span>
+              </div>
+              <dl className="mt-2 space-y-1 text-xs text-ink-soft">
+                <div className="flex justify-between gap-2"><dt>Kind</dt><dd className="text-ink">{l.kind}</dd></div>
+                <div className="flex justify-between gap-2"><dt>To</dt><dd className="truncate text-ink">{l.toEmail}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Tries</dt><dd className="text-ink">{l.attempts}</dd></div>
+                {l.lastError ? <div><dt>Error</dt><dd className="mt-0.5 break-words text-ink-mute">{l.lastError}</dd></div> : null}
+              </dl>
+              {l.status === "failed" ? (
+                <button
+                  type="button"
+                  disabled={busy === `${l.orderId}:${l.kind}`}
+                  onClick={() => resend(l.orderId, l.kind)}
+                  className="rounded-pill mt-3 bg-ink px-3 py-1 text-xs text-cream disabled:opacity-50"
+                >
+                  {busy === `${l.orderId}:${l.kind}` ? "Sending…" : "Resend"}
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-6 hidden overflow-x-auto rounded-lg border border-ink/10 bg-cream sm:block">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
               <tr className="border-b border-ink/10 text-xs uppercase tracking-wide text-ink-mute">
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Kind</th>
-                <th className="px-4 py-3">To</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Tries</th>
-                <th className="px-4 py-3">Error</th>
-                <th className="px-4 py-3">Action</th>
+                <th scope="col" className="px-4 py-3">Order</th>
+                <th scope="col" className="px-4 py-3">Kind</th>
+                <th scope="col" className="px-4 py-3">To</th>
+                <th scope="col" className="px-4 py-3">Status</th>
+                <th scope="col" className="px-4 py-3">Tries</th>
+                <th scope="col" className="px-4 py-3">Error</th>
+                <th scope="col" className="px-4 py-3">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -127,6 +154,7 @@ export function EmailLogTable({ logs, total, page, perPage, orderNumber }: Props
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {error ? <p role="alert" className="mt-3 text-sm text-clay">{error}</p> : null}

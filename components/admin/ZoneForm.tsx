@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteRate, upsertRate, upsertZone, type AdminZone } from "@/lib/actions/admin";
 
@@ -17,6 +17,53 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
   const [rate, setRate] = useState({ id: "", zoneId: "", minSubtotalCents: "", feeCents: "", etaDays: "" });
   const [rateError, setRateError] = useState<string | null>(null);
   const [ratePending, setRatePending] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<null | {
+    id: string;
+    zoneName: string;
+    isLast: boolean;
+    label: string;
+  }>(null);
+  const [deleting, setDeleting] = useState(false);
+  const deleteConfirmRef = useRef<HTMLButtonElement | null>(null);
+  const deleteDialogRef = useRef<HTMLDivElement | null>(null);
+  const deleteOpenerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!pendingDelete) return;
+    deleteOpenerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const t = window.setTimeout(() => deleteConfirmRef.current?.focus(), 0);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setPendingDelete(null);
+        return;
+      }
+      if (e.key !== "Tab" || !deleteDialogRef.current) return;
+      const els = [
+        ...deleteDialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (els.length === 0) return;
+      const first = els[0]!;
+      const last = els[els.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("keydown", onKey);
+      deleteOpenerRef.current?.focus?.();
+      deleteOpenerRef.current = null;
+    };
+  }, [pendingDelete]);
 
   async function submitZone(e: React.FormEvent) {
     e.preventDefault();
@@ -68,11 +115,36 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
     }
   }
 
-  async function removeRate(id: string) {
+  function requestRemoveRate(rateId: string) {
     setRateError(null);
-    const res = await deleteRate(id);
-    if (!res.ok) setRateError(res.message);
-    else router.refresh();
+    const zone = zones.find((z) => z.rates.some((r) => r.id === rateId));
+    const found = zone?.rates.find((r) => r.id === rateId);
+    const label = found
+      ? `Over ${(found.minSubtotalCents / 100).toLocaleString("en")} → fee ${(found.feeCents / 100).toLocaleString("en")} · ${found.etaDays}`
+      : "This rate";
+    setPendingDelete({
+      id: rateId,
+      zoneName: zone?.name ?? "this zone",
+      isLast: (zone?.rates.length ?? 0) <= 1,
+      label,
+    });
+  }
+
+  async function confirmRemoveRate() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    setRateError(null);
+    try {
+      const res = await deleteRate(pendingDelete.id);
+      if (!res.ok) {
+        setRateError(res.message);
+        return;
+      }
+      setPendingDelete(null);
+      router.refresh();
+    } finally {
+      setDeleting(false);
+    }
   }
 
   if (zones.length === 0) {
@@ -112,8 +184,8 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
                     Over {(r.minSubtotalCents / 100).toLocaleString("en")} → fee {(r.feeCents / 100).toLocaleString("en")} · {r.etaDays}
                   </span>
                   <span className="flex gap-2">
-                    <button type="button" onClick={() => editRate(z.id, r)} className="rounded-pill border border-ink/15 px-3 py-1 text-xs">Edit</button>
-                    <button type="button" onClick={() => removeRate(r.id)} className="rounded-pill border border-clay/40 px-3 py-1 text-xs text-clay">Delete</button>
+                    <button type="button" onClick={() => editRate(z.id, r)} aria-haspopup="dialog" aria-expanded={rate.zoneId === z.id} aria-controls="rate-editor" className="rounded-pill border border-ink/15 px-3 py-1 text-xs">Edit</button>
+                    <button type="button" onClick={() => requestRemoveRate(r.id)} aria-haspopup="dialog" aria-expanded={!!pendingDelete} aria-controls="delete-rate-dialog" className="rounded-pill border border-clay/40 px-3 py-1 text-xs text-clay">Delete</button>
                   </span>
                 </li>
               ))}
@@ -122,6 +194,9 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
           <button
             type="button"
             onClick={() => editRate(z.id)}
+            aria-haspopup="dialog"
+            aria-expanded={rate.zoneId === z.id}
+            aria-controls="rate-editor"
             className="rounded-pill mt-3 border border-ink/15 px-4 py-1.5 text-sm transition-transform duration-200 hover:-translate-y-0.5"
           >
             + Rate for {z.name}
@@ -132,7 +207,7 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
       <ZoneCreate zoneName={zoneName} setZoneName={setZoneName} zoneError={zoneError} zonePending={zonePending} onSubmit={submitZone} />
 
       {rate.zoneId ? (
-        <form onSubmit={submitRate} className="grid grid-cols-1 gap-4 rounded-lg border border-bronze/40 bg-cream p-5 sm:grid-cols-2" noValidate>
+        <form onSubmit={submitRate} id="rate-editor" className="grid grid-cols-1 gap-4 rounded-lg border border-bronze/40 bg-cream p-5 sm:grid-cols-2" noValidate>
           <h3 className="font-display text-xl sm:col-span-2">{rate.id ? "Edit rate" : "New rate"}</h3>
           <label className="block">
             <span className={labelCls}>From order value (smallest unit, ≥ 0) *</span>
@@ -156,6 +231,61 @@ export function ZoneForm({ zones }: { zones: AdminZone[] }) {
         </form>
       ) : null}
       {rateError && !rate.zoneId ? <p role="alert" className="text-sm text-clay">{rateError}</p> : null}
+      {pendingDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close delete confirmation"
+            onClick={() => setPendingDelete(null)}
+            className="absolute inset-0 bg-ink/40"
+          />
+          <div
+            ref={deleteDialogRef}
+            id="delete-rate-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-rate-h"
+            aria-describedby="delete-rate-d"
+            className="relative w-full max-w-md rounded-lg border border-ink/10 bg-paper p-5 shadow-lift"
+          >
+            <h2 id="delete-rate-h" className="font-display text-xl">
+              Delete rate in {pendingDelete.zoneName}?
+            </h2>
+            <div id="delete-rate-d" className="mt-2 text-sm leading-relaxed text-ink-soft">
+              <p>{pendingDelete.label}.</p>
+              {pendingDelete.isLast ? (
+                <p role="alert" className="mt-2 rounded-md bg-clay/10 p-3 text-sm text-clay">
+                  This is the last rate in {pendingDelete.zoneName} — deleting it will make checkout
+                  refuse this zone until you add a new rate. Add a replacement first if you can.
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-ink-mute">
+                  Checkout will fall back to the remaining rates in {pendingDelete.zoneName}.
+                </p>
+              )}
+            </div>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(null)}
+                disabled={deleting}
+                className="rounded-pill border border-ink/20 px-5 py-2 text-sm disabled:opacity-50"
+              >
+                Keep rate
+              </button>
+              <button
+                type="button"
+                ref={deleteConfirmRef}
+                onClick={confirmRemoveRate}
+                disabled={deleting}
+                className="rounded-pill bg-clay px-5 py-2 text-sm text-cream disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : pendingDelete.isLast ? "Delete last rate" : "Yes, delete rate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

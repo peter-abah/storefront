@@ -34,7 +34,12 @@ export function KpiStrip({ stats, baseSymbol = "" }: Props) {
     {
       label: "Cash collected",
       value: formatBaseCents(stats.codCollectedCents, baseSymbol),
-      hint: "Delivered and paid, in base currency.",
+      hint: "COD delivered and paid, in base currency.",
+    },
+    {
+      label: "Online collected",
+      value: formatBaseCents(stats.onlineCollectedCents, baseSymbol),
+      hint: "Paystack orders past payment, in base currency.",
     },
     {
       label: "Failed emails",
@@ -43,7 +48,7 @@ export function KpiStrip({ stats, baseSymbol = "" }: Props) {
     },
   ];
   return (
-    <section aria-label="Shop overview" className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+    <section aria-label="Shop overview" className="grid grid-cols-2 gap-4 lg:grid-cols-6">
       {cards.map((c) => (
         <div
           key={c.label}
