@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CONTACT, supportEmail } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "Shipping — Maison",
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default function ShippingPage() {
+  const email = supportEmail();
   return (
     <main className="editorial-grid py-10 md:py-14">
       <div className="col-span-12 lg:col-span-8 lg:col-start-3">
@@ -14,7 +16,7 @@ export default function ShippingPage() {
         <h1 className="font-display mt-2 text-4xl md:text-6xl">Shipping</h1>
         <p className="mt-3 max-w-prose text-ink-soft">
           Cash on delivery. The fee for your zone shows at checkout before you
-          place the order — it never changes after.
+          place the order — priced at today&apos;s rate, frozen after checkout.
         </p>
         <div className="mt-8 flex flex-col gap-4">
           <section className="rounded-lg border border-ink/10 bg-cream p-5">
@@ -50,7 +52,24 @@ export default function ShippingPage() {
           </section>
         </div>
         <p className="mt-6 text-sm text-ink-mute">
-          Zone details pending verification. Questions?{" "}
+          Delivery details pending verification. Questions? Write to{" "}
+          <a href={`mailto:${email}`} className="text-bronze-deep underline underline-offset-4">
+            {email}
+          </a>
+          {" "}·{" "}
+          <a href={CONTACT.phoneHref} className="text-bronze-deep underline underline-offset-4">
+            {CONTACT.phoneDisplay}
+          </a>{" "}
+          ·{" "}
+          <a
+            href={CONTACT.whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-bronze-deep underline underline-offset-4"
+          >
+            {CONTACT.whatsappDisplay}
+          </a>{" "}
+          ({CONTACT.hours}) ·{" "}
           <Link href="/contact" className="text-bronze-deep underline underline-offset-4">
             Contact the shop
           </Link>

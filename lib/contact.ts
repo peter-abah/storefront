@@ -36,7 +36,7 @@ export const CONTACT = {
   pickupNote: DRAFT.pickupNote,
   phoneDisplay: envOr(DRAFT.phoneDisplay, "SUPPORT_PHONE"),
   phoneHref:
-    (process.env.SUPPORT_PHONE?.trim() ?? "") !== ""
+    (process.env.SUPPORT_PHONE?.trim() || "") !== ""
       ? `tel:${process.env.SUPPORT_PHONE!.replace(/[^+\d]/g, "")}`
       : DRAFT.phoneHref,
   whatsappUrl: envOr(DRAFT.whatsappUrl, "WHATSAPP_URL"),
@@ -59,8 +59,8 @@ export function supportEmail(): string {
 /** App URL for absolute links (emails, metadata). Localhost fallback is dev-only. */
 export function appUrl(): string {
   return (
-    (process.env.APP_URL ?? "").trim() ||
-    (process.env.NEXT_PUBLIC_APP_URL ?? "").trim() ||
+    (process.env.APP_URL || "").trim() ||
+    (process.env.NEXT_PUBLIC_APP_URL || "").trim() ||
     "http://localhost:3000"
   );
 }

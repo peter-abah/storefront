@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import {
+  addToCart,
   getActiveCurrencies,
   getCart,
   getCartProducts,
@@ -14,8 +15,11 @@ import {
 import { formatDisplay, toDisplay, type MoneyCurrency } from "@/lib/money";
 import {
   getGuestCart,
+  isStorageFullError,
   removeGuestLine,
+  setGuestCart,
   updateGuestQty,
+  type GuestLine,
 } from "@/lib/cart-local";
 import { notifyCartUpdated } from "@/lib/cart-events";
 
@@ -46,17 +50,36 @@ function priceOf(baseCents: number, currency: CurrencyRow | null): string {
  * full /cart page ("full page mirror"). Loads fresh server state on mount
  * and on every `maison:cart-updated` event.
  */
-export function CartView({ variant }: { variant: "drawer" | "page" }) {
+export function CartView({
+  variant,
+  onNavigate,
+}: {
+  variant: "drawer" | "page";
+  onNavigate?: () => void;
+}) {
   const { data: session, isPending } = useSession();
   const [lines, setLines] = useState<Line[]>([]);
   const [currency, setCurrency] = useState<CurrencyRow | null>(null);
   const [clampedCount, setClampedCount] = useState(0);
+  const [removedCount, setRemovedCount] = useState(0);
+  const [removedNames, setRemovedNames] = useState<string[]>([]);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const [outOfStockCount, setOutOfStockCount] = useState(0);
+  const [dismissedRemoved, setDismissedRemoved] = useState(false);
+  const [purged, setPurged] = useState<null | {
+    count: number;
+    guestSnapshot: GuestLine[];
+    authSnapshot: { productId: string; qty: number }[];
+  }>(null);
+  const [purgeBusy, setPurgeBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [unauthenticated, setUnauthenticated] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
+    setUnauthenticated(false);
     try {
       const curRes = await getActiveCurrencies();
       const rows = (curRes.ok ? curRes.data : []) as CurrencyRow[];
@@ -66,18 +89,27 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
       if (session?.user) {
         const res = await getCart();
         if (!res.ok) {
+          if (res.code === "UNAUTHENTICATED") setUnauthenticated(true);
           setError(res.message);
           setLines([]);
           return;
         }
         setLines(res.data.lines);
-        setClampedCount(res.data.lines.filter((l) => l.clamped).length);
+        setClampedCount(res.data.lines.filter((l) => l.clamped && l.stock > 0).length);
+        setRemovedCount(res.data.removedCount ?? 0);
+        setRemovedNames(res.data.removedNames ?? []);
+        setRemovedIds(res.data.removedIds ?? []);
+        setOutOfStockCount(res.data.outOfStockCount ?? 0);
       } else if (!isPending) {
         // Guest: enrich local qtys with live product snapshots.
         const guest = getGuestCart();
         if (guest.length === 0) {
           setLines([]);
           setClampedCount(0);
+          setRemovedCount(0);
+          setRemovedNames([]);
+          setRemovedIds([]);
+          setOutOfStockCount(0);
           return;
         }
         const snap = await getCartProducts(guest.map((g) => g.productId));
@@ -86,16 +118,25 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
         );
         const merged: Line[] = [];
         let clamped = 0;
+        let oos = 0;
+        const goneNames: string[] = [];
+        const goneIds: string[] = [];
         for (const g of guest) {
           const p = byId.get(g.productId);
-          if (!p || p.stock <= 0) {
-            clamped += 1;
+          if (!p || (p as { active?: boolean }).active === false) {
+            // Hidden or deleted — excluded from display, surfaced in banner.
+            goneNames.push(p && (p as { name?: string }).name ? String((p as { name?: string }).name) : "Removed product");
+            goneIds.push(g.productId);
+            continue;
+          }
+          if (p.stock <= 0) {
+            oos += 1;
             merged.push({
-              productId: g.productId,
-              slug: "",
-              name: "No longer available",
-              image: null,
-              unitBaseCents: 0,
+              productId: p.id,
+              slug: p.slug,
+              name: p.name,
+              image: p.images[0]?.url ?? null,
+              unitBaseCents: p.priceBaseCents,
               qty: 0,
               stock: 0,
               lineBaseCents: 0,
@@ -119,6 +160,10 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
         }
         setLines(merged);
         setClampedCount(clamped);
+        setRemovedCount(goneIds.length);
+        setRemovedNames(goneNames);
+        setRemovedIds(goneIds);
+        setOutOfStockCount(oos);
       }
     } catch {
       setError("Could not load your cart — try again.");
@@ -137,12 +182,21 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
   async function setLineQty(line: Line, qty: number) {
     setBusyId(line.productId);
     setError(null);
+    setUnauthenticated(false);
     try {
       if (session?.user) {
         const res = await updateQty({ productId: line.productId, qty });
-        if (!res.ok) setError(res.message);
+        if (!res.ok) {
+          if (res.code === "UNAUTHENTICATED") setUnauthenticated(true);
+          setError(res.message);
+        }
       } else {
-        updateGuestQty(line.productId, qty);
+        try {
+          updateGuestQty(line.productId, qty);
+        } catch (e) {
+          if (isStorageFullError(e)) setError(e.message);
+          else throw e;
+        }
       }
       notifyCartUpdated();
       await load();
@@ -157,7 +211,11 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
       if (session?.user) {
         await removeLine(line.productId);
       } else {
-        removeGuestLine(line.productId);
+        try {
+          removeGuestLine(line.productId);
+        } catch (e) {
+          if (isStorageFullError(e)) setError(e.message);
+        }
       }
       notifyCartUpdated();
       await load();
@@ -166,8 +224,80 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
     }
   }
 
+  async function removeUnavailable() {
+    setPurgeBusy(true);
+    setError(null);
+    try {
+      const oosIds = lines.filter((l) => l.stock <= 0).map((l) => l.productId);
+      const authSnapshot = lines
+        .filter((l) => l.stock <= 0)
+        .map((l) => ({ productId: l.productId, qty: Math.max(1, l.qty) }));
+      const guestSnapshot = getGuestCart();
+      if (session?.user) {
+        for (const id of [...removedIds, ...oosIds]) {
+          await removeLine(id);
+        }
+      } else {
+        const keep = guestSnapshot.filter(
+          (g) => !removedIds.includes(g.productId) && !oosIds.includes(g.productId),
+        );
+        try {
+          setGuestCart(keep);
+        } catch (e) {
+          if (isStorageFullError(e)) setError(e.message);
+        }
+      }
+      const count = (session?.user ? removedIds.length + oosIds.length : removedIds.length + oosIds.length);
+      setPurged({ count, guestSnapshot, authSnapshot });
+      setDismissedRemoved(true);
+      notifyCartUpdated();
+      await load();
+    } finally {
+      setPurgeBusy(false);
+    }
+  }
+
+  async function undoPurge() {
+    if (!purged) return;
+    setPurgeBusy(true);
+    setError(null);
+    try {
+      if (session?.user) {
+        let restored = 0;
+        let failed = 0;
+        for (const s of purged.authSnapshot) {
+          const res = await addToCart({ productId: s.productId, qty: s.qty });
+          if (res.ok) restored += 1;
+          else failed += 1;
+        }
+        // Hidden pieces can't be restored until re-activated — surface honestly.
+        if (failed > 0 && restored === 0) {
+          setError("Those pieces are still unavailable, so they can't be restored yet.");
+        }
+        if (restored > 0) setPurged(null);
+      } else {
+        try {
+          setGuestCart(purged.guestSnapshot);
+          setPurged(null);
+        } catch (e) {
+          if (isStorageFullError(e)) setError(e.message);
+        }
+      }
+      setDismissedRemoved(false);
+      notifyCartUpdated();
+      await load();
+    } finally {
+      setPurgeBusy(false);
+    }
+  }
+
   const subtotal = lines.reduce((n, l) => n + l.lineBaseCents, 0);
   const count = lines.reduce((n, l) => n + l.qty, 0);
+  const unavailableCount = removedCount + outOfStockCount;
+  const removedLabel =
+    removedNames.length > 0
+      ? removedNames.slice(0, 3).join(", ") + (removedNames.length > 3 ? ` and ${removedNames.length - 3} more` : "")
+      : "";
 
   if (loading) {
     return (
@@ -179,40 +309,166 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
     );
   }
 
-  if (lines.length === 0) {
+  const signInAgain = unauthenticated ? (
+    <p role="alert" className="mb-4 rounded-md bg-clay/10 p-3 text-sm text-clay">
+      Your session expired —{" "}
+      <Link
+        href="/login?callbackURL=%2Fcart"
+        onClick={onNavigate}
+        className="font-medium text-bronze-deep underline underline-offset-4"
+      >
+        sign in again
+      </Link>{" "}
+      to see your cart.
+    </p>
+  ) : null;
+
+  if (lines.length === 0 && removedCount === 0) {
     return (
-      <div className="py-10 text-center">
-        <p className="text-xs tracking-[0.28em] uppercase text-bronze">Empty cart</p>
-        <h2 className="font-display mt-3 text-2xl">
-          {variant === "page" ? "Your selection is empty — for now." : "Nothing here yet."}
+      <div className="border-t-2 border-ink bg-cream px-6 py-10 text-center">
+        {signInAgain}
+        {purged && purged.count > 0 ? (
+          <p role="status" className="mx-auto mb-4 max-w-sm rounded-md bg-moss/10 p-3 text-sm text-ink">
+            Removed {purged.count} unavailable {purged.count === 1 ? "item" : "items"}.{" "}
+            <button type="button" onClick={undoPurge} disabled={purgeBusy} className="font-medium text-bronze-deep underline underline-offset-4 disabled:opacity-50">
+              Undo
+            </button>{" "}
+            ·{" "}
+            <Link href="/shop" onClick={onNavigate} className="font-medium text-bronze-deep underline underline-offset-4">
+              Continue shopping
+            </Link>
+          </p>
+        ) : null}
+        <p className="text-[11px] tracking-[0.28em] uppercase text-bronze">Empty cart — N° 00</p>
+        <h2 className="font-display mx-auto mt-3 max-w-sm text-2xl leading-tight tracking-tight">
+          Your selection is empty — for now.
         </h2>
         <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-ink-soft">
-          {variant === "page"
-            ? "Explore Living Room and lighting — pay on delivery when the rider arrives."
-            : "Browse the catalog and add a piece — it will appear here."}
+          Every room starts with one piece. Explore Living Room and lighting — pay on delivery when the rider arrives.
         </p>
-        <Link
-          href="/shop?room=living"
-          className="rounded-pill mt-6 inline-block bg-ink px-6 py-2.5 text-sm text-cream"
-        >
-          Explore Living Room icons
-        </Link>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Link
+            href="/shop?room=living"
+            onClick={onNavigate}
+            className="rounded-pill bg-ink px-6 py-2.5 text-sm text-cream transition-transform duration-200 hover:-translate-y-0.5"
+          >
+            Explore Living Room pieces
+          </Link>
+          <Link
+            href="/shop"
+            onClick={onNavigate}
+            className="rounded-pill border border-ink/15 px-5 py-2.5 text-sm hover:border-bronze"
+          >
+            Browse all pieces
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
     <div>
+      {signInAgain}
+      {!dismissedRemoved && removedCount > 0 ? (
+        <div role="status" className="mb-4 rounded-md bg-clay/10 p-3 text-sm text-clay">
+          <p>
+            {removedCount} {removedCount === 1 ? "item was" : "items were"} removed — no longer available
+            {removedLabel ? (
+              <>
+                {" "}(<span className="font-medium">{removedLabel}</span>)
+              </>
+            ) : null}
+            .
+          </p>
+          <p className="mt-2 flex flex-wrap gap-3 text-xs">
+            <Link href="/shop" onClick={onNavigate} className="font-medium text-bronze-deep underline underline-offset-4">
+              Continue shopping
+            </Link>
+            <button
+              type="button"
+              onClick={() => setDismissedRemoved(true)}
+              className="font-medium text-bronze-deep underline underline-offset-4"
+            >
+              Dismiss
+            </button>
+          </p>
+        </div>
+      ) : null}
+      {outOfStockCount > 0 ? (
+        <div role="status" className="mb-4 rounded-md bg-bronze/10 p-3 text-sm text-ink">
+          <p>
+            {outOfStockCount} {outOfStockCount === 1 ? "item is" : "items are"} out of stock and
+            can&apos;t be checked out.
+          </p>
+          <button
+            type="button"
+            onClick={removeUnavailable}
+            disabled={purgeBusy}
+            className="rounded-pill mt-2 border border-ink/20 px-4 py-1.5 text-xs hover:border-bronze disabled:opacity-50"
+          >
+            {purgeBusy ? "Removing…" : "Remove unavailable"}
+          </button>
+        </div>
+      ) : removedCount > 0 && !dismissedRemoved ? (
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={removeUnavailable}
+            disabled={purgeBusy}
+            className="rounded-pill border border-ink/20 px-4 py-1.5 text-xs hover:border-bronze disabled:opacity-50"
+          >
+            {purgeBusy ? "Removing…" : "Remove unavailable"}
+          </button>
+        </div>
+      ) : null}
+      {purged && purged.count > 0 ? (
+        <p role="status" className="mb-4 rounded-md bg-moss/10 p-3 text-sm text-ink">
+          Removed {purged.count} unavailable {purged.count === 1 ? "item" : "items"}.{" "}
+          <button type="button" onClick={undoPurge} disabled={purgeBusy} className="font-medium text-bronze-deep underline underline-offset-4 disabled:opacity-50">
+            Undo
+          </button>{" "}
+          ·{" "}
+          <Link href="/shop" onClick={onNavigate} className="font-medium text-bronze-deep underline underline-offset-4">
+            Continue shopping
+          </Link>
+        </p>
+      ) : null}
       {clampedCount > 0 ? (
         <p role="status" className="mb-4 rounded-md bg-clay/10 p-3 text-sm text-clay">
           Stock shifted while you browsed — we&apos;ve kept only what&apos;s available (
           {clampedCount} {clampedCount === 1 ? "item" : "items"}).
         </p>
       ) : null}
-      {error ? (
+      {error && !unauthenticated ? (
         <p role="alert" className="mb-4 rounded-md bg-clay/10 p-3 text-sm text-clay">
           {error}
         </p>
+      ) : null}
+
+      {lines.length === 0 && removedCount > 0 ? (
+        <div className="py-6 text-center">
+          <p className="text-xs tracking-[0.28em] uppercase text-bronze">Unavailable only</p>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-ink-soft">
+            Everything left in your bag is unavailable right now. Remove them to start fresh.
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            <button
+              type="button"
+              onClick={removeUnavailable}
+              disabled={purgeBusy}
+              className="rounded-pill bg-ink px-5 py-2 text-sm text-cream disabled:opacity-50"
+            >
+              {purgeBusy ? "Removing…" : "Remove unavailable"}
+            </button>
+            <Link
+              href="/shop"
+              onClick={onNavigate}
+              className="rounded-pill border border-ink/20 px-5 py-2 text-sm"
+            >
+              Continue shopping
+            </Link>
+          </div>
+        </div>
       ) : null}
 
       <ul className="flex flex-col gap-4">
@@ -237,6 +493,7 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
               {l.slug ? (
                 <Link
                   href={`/product/${l.slug}`}
+                  onClick={onNavigate}
                   className="font-display line-clamp-1 text-[15px] hover:text-bronze-deep"
                 >
                   {l.name}
@@ -245,6 +502,11 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
                 <p className="font-display line-clamp-1 text-[15px] text-ink-mute">{l.name}</p>
               )}
               <p className="mt-0.5 text-sm text-ink-soft">{priceOf(l.unitBaseCents, currency)} each</p>
+              {l.stock <= 0 ? (
+                <p role="status" className="mt-1 text-xs font-medium text-clay">
+                  Out of stock — remove to check out.
+                </p>
+              ) : null}
               <div className="mt-2 flex items-center justify-between gap-2">
                 <div
                   className="flex items-center rounded-pill border border-ink/15"
@@ -297,33 +559,45 @@ export function CartView({ variant }: { variant: "drawer" | "page" }) {
         ))}
       </ul>
 
-      <div className="mt-5 border-t border-ink/10 pt-4">
-        <div className="flex items-baseline justify-between">
-          <p className="text-sm text-ink-soft">
-            Subtotal ({count} {count === 1 ? "item" : "items"})
+      {lines.length > 0 ? (
+        <div className="mt-5 border-t border-ink/10 pt-4">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm text-ink-soft">
+              Subtotal ({count} {count === 1 ? "item" : "items"})
+            </p>
+            <p className="font-display text-xl">{priceOf(subtotal, currency)}</p>
+          </div>
+          <p className="mt-1 text-xs text-ink-mute">
+            Delivery calculated at checkout by area.
           </p>
-          <p className="font-display text-xl">{priceOf(subtotal, currency)}</p>
-        </div>
-        <p className="mt-1 text-xs text-ink-mute">
-          Delivery calculated at checkout by area.
-        </p>
-        <div className="mt-4 flex flex-col gap-2">
-          <Link
-            href="/checkout"
-            className="rounded-pill bg-ink px-6 py-3 text-center text-sm text-cream transition-transform duration-200 hover:-translate-y-0.5"
-          >
-            Continue to checkout
-          </Link>
-          {variant === "drawer" ? (
+          <div className="mt-4 flex flex-col gap-2">
             <Link
-              href="/cart"
-              className="rounded-pill border border-ink/20 px-6 py-2.5 text-center text-sm hover:border-bronze"
+              href="/checkout"
+              onClick={onNavigate}
+              className="rounded-pill bg-ink px-6 py-3 text-center text-sm text-cream transition-transform duration-200 hover:-translate-y-0.5"
             >
-              View full cart
+              Continue to checkout
             </Link>
-          ) : null}
+            {variant === "drawer" ? (
+              <Link
+                href="/cart"
+                onClick={onNavigate}
+                className="rounded-pill border border-ink/20 px-6 py-2.5 text-center text-sm hover:border-bronze"
+              >
+                View full cart
+              </Link>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
+      {unavailableCount > 0 && lines.length > 0 ? (
+        <p className="mt-3 text-center text-xs text-ink-mute">
+          <Link href="/shop" onClick={onNavigate} className="text-bronze-deep underline underline-offset-4">
+            Continue shopping
+          </Link>{" "}
+          for available pieces.
+        </p>
+      ) : null}
     </div>
   );
 }

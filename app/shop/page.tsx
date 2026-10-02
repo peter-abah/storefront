@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   formatDisplay,
   getDisplayCurrency,
@@ -11,6 +10,8 @@ import { SearchFilters } from "@/components/storefront/SearchFilters";
 import { ProductCard } from "@/components/storefront/ProductCard";
 import { Pagination } from "@/components/storefront/Pagination";
 import { Reveal } from "@/components/storefront/Reveal";
+import { CatalogInterlude, Folio } from "@/components/storefront/Editorial";
+import { EmptyState } from "@/components/storefront/EmptyState";
 
 export const revalidate = 60;
 
@@ -89,10 +90,15 @@ export default async function ShopPage({
   return (
     <main className="editorial-grid items-start py-10 md:py-14">
       <div className="col-span-12">
-        <p className="text-xs tracking-[0.3em] uppercase text-bronze">Catalog</p>
-        <h1 className="font-display mt-2 text-4xl md:text-6xl">Shop all pieces</h1>
+        <Folio index="03" label={`Index — Catalog · ${total} ${total === 1 ? "piece" : "pieces"}`} />
+        <h1 className="font-display mt-3 text-4xl tracking-tight md:text-6xl">Shop all pieces</h1>
         <p className="mt-3 max-w-prose text-ink-soft">
           {total} {total === 1 ? "piece" : "pieces"}
+          {room ? (
+            <>
+              {" "}in <strong className="text-ink">{room}</strong>
+            </>
+          ) : null}
           {search ? (
             <>
               {" "}for <strong className="text-ink">“{search}”</strong>
@@ -103,8 +109,9 @@ export default async function ShopPage({
       </div>
 
       <aside className="col-span-12 md:col-span-3 lg:col-span-3">
-        <div className="rounded-lg border border-ink/10 bg-cream p-5 md:sticky md:top-6">
-          <h2 className="font-display mb-4 text-xl">Filters</h2>
+        <div className="border-t-2 border-ink bg-cream p-5 md:sticky md:top-24">
+          <h2 className="font-display mb-1 text-xl">Filters</h2>
+          <p className="mb-4 text-xs tracking-[0.18em] uppercase text-ink-mute">Refine the index</p>
           <SearchFilters
             initial={{
               search,
@@ -123,53 +130,53 @@ export default async function ShopPage({
 
       <section aria-label="Products" className="col-span-12 md:col-span-9">
         {items.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-bronze/50 bg-cream px-6 py-14 text-center">
-            <p className="text-xs tracking-[0.28em] uppercase text-bronze">No matches</p>
-            <h2 className="font-display mx-auto mt-3 max-w-md text-2xl md:text-3xl">
-              {search ? (
-                <>Nothing matches “{search}” with these filters.</>
-              ) : (
-                <>Nothing matches these filters.</>
-              )}
-            </h2>
-            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-soft">
-              Try widening the price range, clearing “in stock only”, or start from a room —
-              most rattan and oak pieces live under Living Room and Bedroom.
-            </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              <Link
-                href="/shop"
-                className="rounded-pill bg-ink px-5 py-2.5 text-sm text-cream"
-              >
-                Clear all filters
-              </Link>
-              {meta.rooms.slice(0, 4).map((r) => (
-                <Link
-                  key={r}
-                  href={`/shop?room=${encodeURIComponent(r)}`}
-                  className="rounded-pill border border-ink/15 px-5 py-2.5 text-sm hover:border-bronze"
-                >
-                  Explore {r}
-                </Link>
-              ))}
-            </div>
+          <div className="border-t-2 border-ink bg-cream">
+            <EmptyState
+              eyebrow={search ? `No matches for “${search}”` : "No matches"}
+              title={search ? `Nothing matches “${search}” with these filters.` : "Nothing matches these filters."}
+              body="Try widening the price range, clearing “in stock only”, or start from a room — most rattan and oak pieces live under Living Room and Bedroom."
+              primary={{ href: "/shop", label: "Clear all filters" }}
+              secondary={meta.rooms.slice(0, 3).map((r) => ({
+                href: `/shop?room=${encodeURIComponent(r)}`,
+                label: `Explore ${r}`,
+              }))}
+            />
             {hasFilters ? null : (
-              <p className="mt-4 text-xs text-ink-mute">
-                Our collection is being prepared — please return shortly.
+              <p className="border-t border-ink/10 py-3 text-center text-xs text-ink-mute">
+                Our shelves are being restocked — please return shortly.
               </p>
             )}
           </div>
         ) : (
           <>
-            <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((p, i) => (
-                <li key={p.id}>
-                  <Reveal delay={Math.min((i % 6) * 0.05, 0.25)}>
-                    <ProductCard product={p} priceLabel={priceOf(p.priceBaseCents)} />
-                  </Reveal>
-                </li>
-              ))}
+            <ul className="grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+              {items.flatMap((p, i) => {
+                const card = (
+                  <li key={p.id}>
+                    <Reveal delay={Math.min((i % 6) * 0.05, 0.25)}>
+                      <ProductCard product={p} priceLabel={priceOf(p.priceBaseCents)} index={i} />
+                    </Reveal>
+                  </li>
+                );
+                // Editorial break after the sixth entry — rhythm over card soup.
+                if (i === 5 && items.length > 8) {
+                  return [
+                    card,
+                    <li key="interlude" className="sm:col-span-2 lg:col-span-3">
+                      <CatalogInterlude
+                        index="04"
+                        line="Built to age gracefully in real homes — solid timber, honest textiles."
+                        sub="Every piece lists materials, dimensions and care. Cash on delivery."
+                      />
+                    </li>,
+                  ];
+                }
+                return [card];
+              })}
             </ul>
+            <p className="mt-8 border-t border-ink/10 pt-3 text-xs tracking-[0.18em] uppercase text-ink-mute">
+              End of page {Math.min(page, totalPages)} of {totalPages} — {total} pieces indexed
+            </p>
             <Pagination page={Math.min(page, totalPages)} totalPages={totalPages} params={pageParams} />
           </>
         )}

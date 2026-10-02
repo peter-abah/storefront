@@ -33,9 +33,23 @@ export type CartDTO = {
   lines: CartLineDTO[];
   count: number;
   subtotalBaseCents: number;
+  /** Hidden/deleted products still in the cart but excluded from display. */
+  removedCount: number;
+  removedNames: string[];
+  removedIds: string[];
+  /** Active products with zero stock (shown as unavailable lines). */
+  outOfStockCount: number;
 };
 
-const EMPTY: CartDTO = { lines: [], count: 0, subtotalBaseCents: 0 };
+const EMPTY: CartDTO = {
+  lines: [],
+  count: 0,
+  subtotalBaseCents: 0,
+  removedCount: 0,
+  removedNames: [],
+  removedIds: [],
+  outOfStockCount: 0,
+};
 
 async function cartIdFor(userId: string): Promise<string | null> {
   const row = (
@@ -75,15 +89,30 @@ async function loadCart(userId: string): Promise<CartDTO> {
         items.map((i) => i.productId),
       ),
     );
-  const byId = new Map(prods.filter((p) => p.active).map((p) => [p.id, p]));
+  const byIdAll = new Map(prods.map((p) => [p.id, p]));
 
   const lines: CartLineDTO[] = [];
+  const removedNames: string[] = [];
+  const removedIds: string[] = [];
+  let outOfStockCount = 0;
   for (const item of items) {
-    const p = byId.get(item.productId);
-    if (!p) continue; // inactive or deleted product — hidden from display
+    const p = byIdAll.get(item.productId);
+    if (!p) {
+      // Deleted product — hidden from display, surfaced for the banner.
+      removedNames.push("Removed product");
+      removedIds.push(item.productId);
+      continue;
+    }
+    if (!p.active) {
+      // Hidden product — hidden from display, surfaced for the banner.
+      removedNames.push(p.name);
+      removedIds.push(p.id);
+      continue;
+    }
     const qty = Math.max(1, item.qty);
     const clamped = qty > p.stock;
     const showQty = clamped ? Math.max(0, p.stock) : qty;
+    if (p.stock <= 0) outOfStockCount += 1;
     lines.push({
       productId: p.id,
       slug: p.slug,
@@ -101,6 +130,10 @@ async function loadCart(userId: string): Promise<CartDTO> {
     lines,
     count: lines.reduce((n, l) => n + l.qty, 0),
     subtotalBaseCents: lines.reduce((n, l) => n + l.lineBaseCents, 0),
+    removedCount: removedIds.length,
+    removedNames,
+    removedIds,
+    outOfStockCount,
   };
 }
 
@@ -306,6 +339,7 @@ export async function getCartProducts(ids: unknown) {
       name: products.name,
       priceBaseCents: products.priceBaseCents,
       stock: products.stock,
+      active: products.active,
       images: products.images,
     })
     .from(products)

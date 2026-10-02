@@ -30,13 +30,15 @@ export function Pagination({ page, totalPages, params }: PaginationProps) {
     "rounded-pill border px-4 py-2 text-sm transition-colors hover:border-bronze";
   return (
     <nav aria-label="Catalog pages" className="mt-10 flex flex-wrap items-center gap-2">
-      <Link
-        href={hrefFor(prev, params)}
-        aria-disabled={page <= 1}
-        className={`${btn} ${page <= 1 ? "pointer-events-none opacity-40" : "border-ink/15"}`}
-      >
-        ← Prev
-      </Link>
+      {page <= 1 ? (
+        <button type="button" disabled aria-disabled="true" tabIndex={-1} className={`${btn} opacity-40`}>
+          ← Prev
+        </button>
+      ) : (
+        <Link href={hrefFor(prev, params)} className={`${btn} border-ink/15`}>
+          ← Prev
+        </Link>
+      )}
       {numbers.map((p) => (
         <Link
           key={p}
@@ -47,13 +49,15 @@ export function Pagination({ page, totalPages, params }: PaginationProps) {
           {p}
         </Link>
       ))}
-      <Link
-        href={hrefFor(next, params)}
-        aria-disabled={page >= totalPages}
-        className={`${btn} ${page >= totalPages ? "pointer-events-none opacity-40" : "border-ink/15"}`}
-      >
-        Next →
-      </Link>
+      {page >= totalPages ? (
+        <button type="button" disabled aria-disabled="true" tabIndex={-1} className={`${btn} opacity-40`}>
+          Next →
+        </button>
+      ) : (
+        <Link href={hrefFor(next, params)} className={`${btn} border-ink/15`}>
+          Next →
+        </Link>
+      )}
       <span className="ml-2 text-sm text-ink-mute">
         Page {page} of {totalPages}
       </span>

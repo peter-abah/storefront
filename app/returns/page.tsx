@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CONTACT, supportEmail } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "Returns — Maison",
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default function ReturnsPage() {
+  const email = supportEmail();
   return (
     <main className="editorial-grid py-10 md:py-14">
       <div className="col-span-12 lg:col-span-8 lg:col-start-3">
@@ -42,7 +44,11 @@ export default function ReturnsPage() {
           <section className="rounded-lg border border-ink/10 bg-cream p-5">
             <h2 className="font-display text-xl">How to request</h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-              Write to support with your order number and photos of the issue.
+              Write to{" "}
+              <a href={`mailto:${email}`} className="text-bronze-deep underline underline-offset-4">
+                {email}
+              </a>{" "}
+              with your order number and photos of the issue.
               To cancel an unconfirmed order instead, see{" "}
               <Link href="/faq" className="text-bronze-deep underline underline-offset-4">
                 cancellation in the FAQ
@@ -52,7 +58,24 @@ export default function ReturnsPage() {
           </section>
         </div>
         <p className="mt-6 text-sm text-ink-mute">
-          Policy details pending verification. Start here:{" "}
+          Returns details pending verification. Questions? Write to{" "}
+          <a href={`mailto:${email}`} className="text-bronze-deep underline underline-offset-4">
+            {email}
+          </a>
+          {" "}·{" "}
+          <a href={CONTACT.phoneHref} className="text-bronze-deep underline underline-offset-4">
+            {CONTACT.phoneDisplay}
+          </a>{" "}
+          ·{" "}
+          <a
+            href={CONTACT.whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-bronze-deep underline underline-offset-4"
+          >
+            {CONTACT.whatsappDisplay}
+          </a>{" "}
+          ({CONTACT.hours}) ·{" "}
           <Link href="/contact" className="text-bronze-deep underline underline-offset-4">
             Contact the shop
           </Link>

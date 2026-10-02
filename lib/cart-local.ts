@@ -4,6 +4,22 @@
 // no-ops outside the browser.
 export type GuestLine = { productId: string; qty: number };
 
+export const STORAGE_FULL = "STORAGE_FULL";
+
+export type StorageFullError = Error & { code: typeof STORAGE_FULL };
+
+export function isStorageFullError(e: unknown): e is StorageFullError {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    (e as { code?: unknown }).code === STORAGE_FULL
+  );
+}
+
+function storageFullError(message: string): StorageFullError {
+  return Object.assign(new Error(message), { code: STORAGE_FULL }) as StorageFullError;
+}
+
 const KEY = "maison:guest-cart:v1";
 const MAX_QTY = 99;
 
@@ -32,12 +48,30 @@ function read(): GuestLine[] {
   }
 }
 
-function write(lines: GuestLine[]): void {
-  if (typeof window === "undefined") return;
+function write(lines: GuestLine[]): boolean {
+  if (typeof window === "undefined") return true;
   try {
     window.localStorage.setItem(KEY, JSON.stringify(lines));
-  } catch {
-    // Storage full/blocked — guest cart simply doesn't persist.
+    return true;
+  } catch (e) {
+    const err = e as DOMException | null;
+    const name = err?.name ?? "";
+    // QuotaExceededError (full) and SecurityError (blocked, e.g. private
+    // mode) both surface here — callers show the storage-blocked banner.
+    if (
+      name === "QuotaExceededError" ||
+      name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+      name === "SecurityError" ||
+      (err as unknown as { code?: number })?.code === 22 ||
+      (err as unknown as { code?: number })?.code === 1014
+    ) {
+      throw storageFullError(
+        "Browser storage is full or blocked — your bag won't be saved on this device.",
+      );
+    }
+    throw storageFullError(
+      "Browser storage is blocked — your bag won't be saved on this device.",
+    );
   }
 }
 
@@ -45,8 +79,9 @@ export function getGuestCart(): GuestLine[] {
   return read();
 }
 
-export function setGuestCart(lines: GuestLine[]): void {
+export function setGuestCart(lines: GuestLine[]): GuestLine[] {
   write(lines);
+  return lines;
 }
 
 export function addGuestLine(productId: string, qty = 1): GuestLine[] {

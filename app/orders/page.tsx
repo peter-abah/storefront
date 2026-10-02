@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth-session";
 import { getMyOrders } from "@/lib/actions/orders";
 import { formatDisplay, toDisplay } from "@/lib/queries/products";
 import { StatusPill } from "@/components/orders/StatusPill";
+import { EmptyState } from "@/components/storefront/EmptyState";
+import { Folio } from "@/components/storefront/Editorial";
 
 export const dynamic = "force-dynamic";
 
@@ -19,34 +21,33 @@ export default async function OrdersPage() {
   return (
     <main className="editorial-grid py-10 md:py-14">
       <div className="col-span-12 lg:col-span-8 lg:col-start-3">
-        <p className="text-xs tracking-[0.3em] uppercase text-bronze">Account</p>
-        <h1 className="font-display mt-2 text-4xl md:text-6xl">Your orders</h1>
+        <Folio index="06" label="Account — Order ledger" />
+        <h1 className="font-display mt-3 text-4xl tracking-tight md:text-6xl">Your orders</h1>
 
         {orders.length === 0 ? (
-          <div className="mt-8 rounded-lg border border-dashed border-bronze/50 bg-cream px-6 py-14 text-center">
-            <h2 className="font-display text-2xl">No orders yet.</h2>
-            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-soft">
-              When you check out cash on delivery, your pieces and their
-              delivery timeline will live here.
-            </p>
-            <Link
-              href="/shop"
-              className="rounded-pill mt-6 inline-block bg-ink px-6 py-2.5 text-sm text-cream"
-            >
-              Start with the catalog
-            </Link>
+          <div className="mt-8 border-t-2 border-ink bg-cream">
+            <EmptyState
+              eyebrow="Empty ledger — N° 00"
+              title="No orders yet."
+              body="When you check out cash on delivery, your pieces and their delivery timeline will live here — shop confirmation first, the rider calls before arrival."
+              primary={{ href: "/shop", label: "Start with the catalog" }}
+              secondary={[{ href: "/shop?room=living", label: "Explore Living Room" }]}
+            />
           </div>
         ) : (
           <ul className="mt-8 flex flex-col gap-4">
-            {orders.map((o) => {
+            {orders.map((o, i) => {
               const total = formatDisplay(
                 toDisplay(o.totalBaseCents, o.fxRateSnapshot),
                 { code: o.currencyCode, symbol: o.currencySymbol },
               );
               return (
-                <li key={o.id} className="rounded-lg border border-ink/10 bg-cream p-5">
+                <li key={o.id} className="border-t-2 border-ink bg-cream p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
+                      <p className="text-[11px] tracking-[0.2em] uppercase text-bronze">
+                        N° {String(i + 1).padStart(2, "0")}
+                      </p>
                       <Link
                         href={`/orders/${o.id}`}
                         className="font-display text-xl hover:text-bronze-deep"

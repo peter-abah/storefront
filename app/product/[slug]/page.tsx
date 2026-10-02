@@ -71,25 +71,38 @@ export default async function ProductPage({
   return (
     <main className="editorial-grid py-10 md:py-14">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <nav aria-label="Breadcrumb" className="col-span-12 text-sm text-ink-mute">
+      <nav aria-label="Breadcrumb" className="col-span-12 flex flex-wrap items-center gap-2 text-sm text-ink-mute">
+        <span className="text-[11px] tracking-[0.28em] uppercase text-bronze">Folio —</span>
         <Link href="/" className="hover:text-bronze-deep">Home</Link>
         <span aria-hidden> · </span>
         <Link href="/shop" className="hover:text-bronze-deep">Shop</Link>
+        <span aria-hidden> · </span>
+        <Link href={`/shop?room=${encodeURIComponent(product.room)}`} className="hover:text-bronze-deep">
+          {product.room}
+        </Link>
         <span aria-hidden> · </span>
         <span className="text-ink">{product.name}</span>
       </nav>
 
       <div className="col-span-12 lg:col-span-7">
         <ProductGallery images={product.images} name={product.name} />
+        {product.story ? (
+          <div className="mt-8 max-w-prose lg:hidden">
+            <p className="text-[11px] tracking-[0.28em] uppercase text-bronze">Chapter II — Story</p>
+            <p className="story-dropcap mt-3 leading-relaxed text-ink-soft">{product.story}</p>
+          </div>
+        ) : null}
       </div>
 
       <div className="col-span-12 lg:col-span-5">
         <p className="text-xs tracking-[0.28em] uppercase text-bronze">
-          {product.room} · {product.category}
+          Chapter I — {product.room} · {product.category}
         </p>
-        <h1 className="font-display mt-3 text-4xl leading-tight md:text-5xl">{product.name}</h1>
+        <h1 className="font-display mt-3 text-4xl leading-tight tracking-tight md:text-5xl">{product.name}</h1>
         {product.tagline ? (
-          <p className="mt-3 text-lg text-ink-soft italic">{product.tagline}</p>
+          <blockquote className="mt-4 border-l-2 border-bronze pl-4 text-lg text-ink-soft italic">
+            {product.tagline}
+          </blockquote>
         ) : null}
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <p className="font-display text-3xl" aria-label={`Price ${priceLabel}`}>
@@ -104,7 +117,7 @@ export default async function ProductPage({
           </span>
         </div>
         <p className="mt-2 text-xs text-ink-mute">
-          Shown in {currency.symbol} ({currency.code}) · settled at today&rsquo;s rate.
+          Shown in {currency.symbol} ({currency.code}) · priced at today&rsquo;s rate — frozen on your order.
         </p>
 
         {!out ? (
@@ -114,13 +127,13 @@ export default async function ProductPage({
         ) : null}
 
         {product.story ? (
-          <div className="mt-6 max-w-prose">
-            <h2 className="font-display text-xl">Story</h2>
-            <p className="mt-2 leading-relaxed text-ink-soft">{product.story}</p>
+          <div className="mt-6 hidden max-w-prose lg:block">
+            <p className="text-[11px] tracking-[0.28em] uppercase text-bronze">Chapter II — Story</p>
+            <p className="story-dropcap mt-3 leading-relaxed text-ink-soft">{product.story}</p>
           </div>
         ) : null}
 
-        <div className="mt-6">
+        <div className="mt-8 border-t border-ink/10 pt-6">
           <ProductSpecs product={product} />
         </div>
 
@@ -149,7 +162,10 @@ export default async function ProductPage({
       {related.length > 0 ? (
         <section aria-label="Related products" className="col-span-12 mt-6 border-t border-ink/10 pt-10">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <h2 className="font-display text-2xl md:text-4xl">Pairs well with</h2>
+            <div>
+              <p className="text-[11px] tracking-[0.28em] uppercase text-bronze">Chapter IV — Keep reading</p>
+              <h2 className="font-display mt-2 text-2xl tracking-tight md:text-4xl">Pairs well with</h2>
+            </div>
             <Link
               href={`/shop?room=${encodeURIComponent(product.room)}`}
               className="text-sm text-bronze-deep underline underline-offset-4"
@@ -157,12 +173,13 @@ export default async function ProductPage({
               More {product.room} →
             </Link>
           </div>
-          <ul className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <ul className="mt-6 grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
             {related.map((r, i) => (
               <li key={r.id}>
                 <Reveal delay={Math.min(i * 0.06, 0.25)}>
                   <ProductCard
                     product={r}
+                    index={i}
                     priceLabel={formatDisplay(toDisplay(r.priceBaseCents, currency.rateToBase), currency)}
                   />
                 </Reveal>

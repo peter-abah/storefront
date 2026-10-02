@@ -6,20 +6,34 @@ import { AddToCart } from "@/components/cart/AddToCart";
 type ProductCardProps = {
   product: Product;
   priceLabel: string;
+  /** 0-based position in its grid — drives the anti-monotony rhythm. */
+  index?: number;
 };
 
-export function ProductCard({ product, priceLabel }: ProductCardProps) {
+/**
+ * Phase 3 ProductCard — same data + AddToCart logic, editorial rhythm.
+ * Alternating image ratio (4/3 vs 4/5), alternating paper/cream ground,
+ * folio number and story line so grids read as an index, not card soup.
+ */
+export function ProductCard({ product, priceLabel, index = 0 }: ProductCardProps) {
   const first = product.images[0];
   const out = product.stock <= 0;
+  const tall = index % 3 === 1;
+  const folio = String(index + 1).padStart(2, "0");
+
   return (
-    <article className="group flex flex-col overflow-hidden rounded-lg border border-ink/10 bg-cream">
+    <article className="group flex flex-col">
       <Link
         href={`/product/${product.slug}`}
         className="block overflow-hidden"
         aria-label={product.name}
         tabIndex={-1}
       >
-        <div className="relative aspect-[4/3] overflow-hidden bg-linen">
+        <div
+          className={`relative overflow-hidden rounded-lg bg-linen ring-1 ring-ink/10 ${
+            tall ? "aspect-[4/5]" : "aspect-[4/3]"
+          }`}
+        >
           {first ? (
             <Image
               src={first.url}
@@ -43,17 +57,26 @@ export function ProductCard({ product, priceLabel }: ProductCardProps) {
               Featured
             </span>
           ) : null}
+          <span className="absolute right-3 bottom-2 text-[11px] tracking-[0.2em] uppercase text-cream/90">
+            N° {folio}
+          </span>
         </div>
       </Link>
-      <div className="flex flex-1 flex-col p-4">
-        <p className="text-[11px] tracking-[0.2em] uppercase text-ink-mute">
-          {product.room} · {product.category}
+      <div className={`mt-3 flex flex-1 flex-col border-t border-ink/10 pt-3 ${tall ? "md:pl-1" : ""}`}>
+        <p className="flex items-baseline justify-between gap-2 text-[11px] tracking-[0.2em] uppercase text-ink-mute">
+          <span>
+            {product.room} · {product.category}
+          </span>
+          <span className="text-bronze">§ {folio}</span>
         </p>
         <h3 className="font-display mt-1 line-clamp-2 text-lg leading-snug">
           <Link href={`/product/${product.slug}`} className="hover:text-bronze-deep">
             {product.name}
           </Link>
         </h3>
+        {product.tagline ? (
+          <p className="mt-1 line-clamp-1 text-sm text-ink-soft italic">{product.tagline}</p>
+        ) : null}
         <div className="mt-2 flex items-end justify-between gap-2">
           <div>
             <p className="text-[15px] font-medium">{priceLabel}</p>

@@ -14,7 +14,7 @@ export default function ContactPage() {
         <p className="text-xs tracking-[0.3em] uppercase text-bronze">Help</p>
         <h1 className="font-display mt-2 text-4xl md:text-6xl">Contact</h1>
         <p className="mt-3 max-w-prose text-ink-soft">
-          For orders, delivery and returns — include your order number so support
+          For orders, delivery and returns — include your order number so the shop
           can find you quickly.
         </p>
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -56,7 +56,7 @@ export default function ContactPage() {
               </a>
               <br />
               <span className="text-ink-mute">
-                {CONTACT.tradingName} · {CONTACT.cac} — details pending verification.
+                {CONTACT.tradingName} · {CONTACT.cac} — shop details pending verification.
               </span>
             </p>
           </section>

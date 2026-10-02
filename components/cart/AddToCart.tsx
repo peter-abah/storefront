@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { addToCart } from "@/lib/actions/cart";
-import { addGuestLine } from "@/lib/cart-local";
+import { addGuestLine, isStorageFullError } from "@/lib/cart-local";
 import { notifyCartUpdated, openCartDrawer } from "@/lib/cart-events";
 
 type AddToCartProps = {
@@ -18,6 +18,7 @@ export function AddToCart({ productId, stock, mode = "compact" }: AddToCartProps
   const [qty, setQty] = useState(1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [storageBlocked, setStorageBlocked] = useState(false);
 
   if (stock <= 0) return null;
 
@@ -26,6 +27,7 @@ export function AddToCart({ productId, stock, mode = "compact" }: AddToCartProps
   async function add() {
     setPending(true);
     setError(null);
+    setStorageBlocked(false);
     try {
       const n = mode === "full" ? qty : 1;
       if (session?.user) {
@@ -35,7 +37,15 @@ export function AddToCart({ productId, stock, mode = "compact" }: AddToCartProps
           return;
         }
       } else {
-        addGuestLine(productId, n);
+        try {
+          addGuestLine(productId, n);
+        } catch (e) {
+          if (isStorageFullError(e)) {
+            setStorageBlocked(true);
+            return;
+          }
+          throw e;
+        }
       }
       notifyCartUpdated();
       openCartDrawer();
@@ -43,6 +53,13 @@ export function AddToCart({ productId, stock, mode = "compact" }: AddToCartProps
       setPending(false);
     }
   }
+
+  const storageBanner = storageBlocked ? (
+    <span role="alert" className="text-[11px] leading-relaxed text-clay">
+      Browser storage is blocked — sign in to save your bag, or allow site data
+      to keep it on this device.
+    </span>
+  ) : null;
 
   if (mode === "compact") {
     return (
@@ -61,6 +78,7 @@ export function AddToCart({ productId, stock, mode = "compact" }: AddToCartProps
             {error}
           </span>
         ) : null}
+        {storageBanner}
       </span>
     );
   }
@@ -107,6 +125,12 @@ export function AddToCart({ productId, stock, mode = "compact" }: AddToCartProps
       {error ? (
         <p role="alert" className="text-sm text-clay">
           {error}
+        </p>
+      ) : null}
+      {storageBlocked ? (
+        <p role="alert" className="rounded-md bg-clay/10 p-3 text-sm text-clay">
+          Browser storage is blocked — sign in to save your bag, or allow site
+          data to keep it on this device.
         </p>
       ) : null}
     </div>

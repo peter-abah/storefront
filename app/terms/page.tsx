@@ -1,19 +1,21 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CONTACT, supportEmail } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "Terms — Maison",
-  description: "Terms for cash-on-delivery orders from Maison Interiors Ltd.",
+  description: "Terms for cash-on-delivery orders from the Maison shop.",
 };
 
 export default function TermsPage() {
+  const email = supportEmail();
   return (
     <main className="editorial-grid py-10 md:py-14">
       <div className="col-span-12 lg:col-span-8 lg:col-start-3">
         <p className="text-xs tracking-[0.3em] uppercase text-bronze">Help</p>
         <h1 className="font-display mt-2 text-4xl md:text-6xl">Terms</h1>
         <p className="mt-3 max-w-prose text-ink-soft">
-          Maison Interiors Ltd (RC 1784523 — details pending verification)
+          {CONTACT.tradingName} ({CONTACT.cac} — shop details pending verification)
           sells home &amp; living pieces cash on delivery.
         </p>
         <div className="mt-8 flex flex-col gap-4 text-sm leading-relaxed text-ink-soft">
@@ -22,7 +24,7 @@ export default function TermsPage() {
             <p className="mt-2">
               Prices are re-confirmed from the shop&apos;s records when you check
               out — the total shown at checkout is final and frozen on your
-              order. Currency display may vary, but the settled base total never
+              order. Currency display may vary, but the priced base total never
               changes after checkout.
             </p>
           </section>
@@ -40,8 +42,11 @@ export default function TermsPage() {
               <Link href="/orders" className="text-bronze-deep underline underline-offset-4">
                 orders page
               </Link>
-              . After confirmation, contact support — dispatch may already be
-              arranged.
+              . After confirmation, write to{" "}
+              <a href={`mailto:${email}`} className="text-bronze-deep underline underline-offset-4">
+                {email}
+              </a>{" "}
+              — dispatch may already be arranged.
             </p>
           </section>
           <section className="rounded-lg border border-ink/10 bg-cream p-5">
@@ -60,7 +65,24 @@ export default function TermsPage() {
           </section>
         </div>
         <p className="mt-6 text-sm text-ink-mute">
-          Terms pending legal verification. Questions:{" "}
+          Terms pending verification. Questions? Write to{" "}
+          <a href={`mailto:${email}`} className="text-bronze-deep underline underline-offset-4">
+            {email}
+          </a>
+          {" "}·{" "}
+          <a href={CONTACT.phoneHref} className="text-bronze-deep underline underline-offset-4">
+            {CONTACT.phoneDisplay}
+          </a>{" "}
+          ·{" "}
+          <a
+            href={CONTACT.whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-bronze-deep underline underline-offset-4"
+          >
+            {CONTACT.whatsappDisplay}
+          </a>{" "}
+          ({CONTACT.hours}) ·{" "}
           <Link href="/contact" className="text-bronze-deep underline underline-offset-4">
             Contact the shop
           </Link>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CONTACT, supportEmail } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "Privacy — Maison",
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
+  const email = supportEmail();
   return (
     <main className="editorial-grid py-10 md:py-14">
       <div className="col-span-12 lg:col-span-8 lg:col-start-3">
@@ -34,14 +36,35 @@ export default function PrivacyPage() {
           <section className="rounded-lg border border-ink/10 bg-cream p-5">
             <h2 className="font-display text-xl text-ink">Deletion path</h2>
             <p className="mt-2">
-              Write to support with the subject “Delete my data”. Requests are
+              Write to{" "}
+              <a href={`mailto:${email}?subject=${encodeURIComponent("Delete my data")}`} className="text-bronze-deep underline underline-offset-4">
+                {email}
+              </a>{" "}
+              with the subject “Delete my data”. Requests are
               answered within 30 days, except records the law requires the shop
               to keep.
             </p>
           </section>
         </div>
         <p className="mt-6 text-sm text-ink-mute">
-          Notice pending verification. Start here:{" "}
+          Privacy notice pending verification. Questions? Write to{" "}
+          <a href={`mailto:${email}`} className="text-bronze-deep underline underline-offset-4">
+            {email}
+          </a>
+          {" "}·{" "}
+          <a href={CONTACT.phoneHref} className="text-bronze-deep underline underline-offset-4">
+            {CONTACT.phoneDisplay}
+          </a>{" "}
+          ·{" "}
+          <a
+            href={CONTACT.whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-bronze-deep underline underline-offset-4"
+          >
+            {CONTACT.whatsappDisplay}
+          </a>{" "}
+          ({CONTACT.hours}) ·{" "}
           <Link href="/contact" className="text-bronze-deep underline underline-offset-4">
             Contact the shop
           </Link>

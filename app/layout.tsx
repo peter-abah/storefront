@@ -3,10 +3,7 @@ import { Fraunces, Space_Grotesk } from "next/font/google";
 import { MotionConfig } from "motion/react";
 import "./globals.css";
 import { SmoothScrollProvider } from "@/components/providers/smooth-scroll-provider";
-import { SiteFooter } from "@/components/storefront/SiteFooter";
-import { SiteHeader } from "@/components/storefront/SiteHeader";
-import { CartDrawer } from "@/components/cart/CartDrawer";
-import { CartMerge } from "@/components/cart/CartMerge";
+import { SiteChrome } from "@/components/storefront/SiteChrome";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -68,11 +65,7 @@ export default function RootLayout({
       <body className="bg-paper text-ink font-sans antialiased">
         <MotionConfig reducedMotion="user">
           <SmoothScrollProvider>
-            <SiteHeader />
-            {children}
-            <SiteFooter />
-            <CartDrawer />
-            <CartMerge />
+            <SiteChrome>{children}</SiteChrome>
           </SmoothScrollProvider>
         </MotionConfig>
       </body>

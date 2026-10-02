@@ -10,6 +10,7 @@ import { Hero } from "@/components/storefront/Hero";
 import { RoomRail } from "@/components/storefront/RoomRail";
 import { ProductCard } from "@/components/storefront/ProductCard";
 import { Reveal } from "@/components/storefront/Reveal";
+import { Folio, MotifMark } from "@/components/storefront/Editorial";
 
 export const revalidate = 60;
 
@@ -38,17 +39,17 @@ export default async function Home() {
       <section aria-label="Featured products" className="editorial-grid py-12 md:py-16">
         <div className="col-span-12 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs tracking-[0.3em] uppercase text-bronze">Editors&rsquo; picks</p>
-            <h2 className="font-display mt-2 text-3xl md:text-5xl">Featured stories</h2>
+            <Folio index="05" label="Editors' picks — Featured stories" />
+            <h2 className="font-display mt-3 text-3xl tracking-tight md:text-5xl">Featured stories</h2>
           </div>
           <Link href="/shop?sort=featured" className="text-sm text-bronze-deep underline underline-offset-4">
             View all {total} pieces →
           </Link>
         </div>
-        <div className="col-span-12 mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="col-span-12 mt-8 grid grid-cols-1 gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
           {items.map((p, i) => (
             <Reveal key={p.id} delay={Math.min(i * 0.06, 0.3)}>
-              <ProductCard product={p} priceLabel={priceOf(p.priceBaseCents)} />
+              <ProductCard product={p} priceLabel={priceOf(p.priceBaseCents)} index={i} />
             </Reveal>
           ))}
         </div>
@@ -56,15 +57,16 @@ export default async function Home() {
 
       <section aria-label="Craftsmanship manifesto" className="border-t border-ink/10 bg-paper-deep/40">
         <div className="editorial-grid py-12 md:py-16">
-          <p className="col-span-12 text-xs tracking-[0.3em] uppercase text-bronze md:col-span-2">
+          <p className="col-span-12 flex items-center gap-2 text-xs tracking-[0.3em] uppercase text-bronze md:col-span-2">
+            <MotifMark className="h-4 w-4" />
             Manifesto
           </p>
-          <h2 className="font-display col-span-12 text-2xl leading-snug md:col-span-7 md:text-4xl">
+          <h2 className="font-display col-span-12 text-2xl leading-snug tracking-tight md:col-span-7 md:text-4xl">
             Built to age gracefully in real homes — solid timber, honest textiles, finishes you can
             repair, not replace.
           </h2>
           <div className="col-span-12 mt-6 md:col-span-3 md:mt-0">
-            <p className="text-sm leading-relaxed text-ink-soft">
+            <p className="border-l-2 border-bronze pl-4 text-sm leading-relaxed text-ink-soft italic">
               Every piece lists its materials, dimensions, weight and care. Every price is clear
               — what you see is what you pay on arrival.
             </p>
