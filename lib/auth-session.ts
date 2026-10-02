@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { auth } from "./auth";
+import { adminAuth } from "./admin-auth";
 import { db } from "./db";
 import { profiles } from "./db/schema";
 
@@ -15,17 +16,21 @@ export type SessionProfile = {
   profile: typeof profiles.$inferSelect;
 };
 
-function adminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-}
+export type AdminSession = {
+  user: {
+    id: string;
+    email: string;
+    name?: string | null;
+    image?: string | null;
+  };
+};
 
 /**
- * Wave 4 session helper — Better Auth session + profiles upsert.
- * `nextCookies()` (last plugin in lib/auth.ts) is what makes
- * `auth.api.getSession` see the session inside Server Actions/RSC.
+ * DEPRECATED for admin access: ADMIN_EMAILS auto-promote no longer grants
+ * admin. Admin auth is fully separate (lib/admin-auth.ts + admin_users
+ * tables + /admin/login). This helper stays shopper-only — it upserts a
+ * customer profile and never promotes. Shopper checkout/orders/cart flows
+ * are unchanged.
  */
 export async function getSessionProfile(): Promise<SessionProfile | null> {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -33,26 +38,14 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
   if (!u?.id || !u?.email) return null;
 
   const email = u.email;
-  const isAdminEmail = adminEmails().includes(email.toLowerCase());
 
   const existing = (
     await db.select().from(profiles).where(eq(profiles.id, u.id)).limit(1)
   )[0];
 
-  if (existing) {
-    // Allowlist wins on every sign-in so a newly-added ADMIN_EMAILS
-    // promotes on next request. Never demote from here (manual SQL only).
-    if (isAdminEmail && existing.role !== "admin") {
-      await db
-        .update(profiles)
-        .set({ role: "admin" })
-        .where(eq(profiles.id, u.id));
-      return { user: mapUser(u), profile: { ...existing, role: "admin" } };
-    }
-    return { user: mapUser(u), profile: existing };
-  }
+  if (existing) return { user: mapUser(u), profile: existing };
 
-  const role = isAdminEmail ? "admin" : "customer";
+  const role = "customer";
   await db
     .insert(profiles)
     .values({
@@ -93,6 +86,33 @@ export async function requireUser(
   const sp = await getSessionProfile();
   if (!sp) redirect(`/login?callbackURL=${encodeURIComponent(callbackURL)}`);
   return sp;
+}
+
+/**
+ * Admin session helper — reads the isolated admin Better Auth instance
+ * ONLY (admin.session_token cookie → admin_users tables). Never touches
+ * shopper user/session/account or profiles. Used by app/admin/layout.tsx
+ * and lib/actions/admin.ts.
+ */
+export async function getAdminSession(): Promise<AdminSession | null> {
+  const session = await adminAuth.api.getSession({
+    headers: await headers(),
+  });
+  const u = session?.user;
+  if (!u?.id || !u?.email) return null;
+  return {
+    user: { id: u.id, email: u.email, name: u.name, image: u.image },
+  };
+}
+
+/** Redirect non-admins to /admin/login (param name matches middleware.ts). */
+export async function requireAdmin(
+  callbackURL = "/admin",
+): Promise<AdminSession> {
+  const s = await getAdminSession();
+  if (!s)
+    redirect(`/admin/login?callbackURL=${encodeURIComponent(callbackURL)}`);
+  return s;
 }
 
 function mapUser(u: {
