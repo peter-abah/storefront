@@ -110,6 +110,7 @@ function productImages(cat: string, room: string, n: number): { url: string }[] 
   const pick = (pool: string[], k: number) => pool[k % pool.length]!;
   return [{ url: U(pick(cp, n)) }, { url: U(pick(rp, n + 2)) }, { url: U(pick(cp, n + 5)) }];
 }
+import "./env.js";
 import { eq } from "drizzle-orm";
 import { db } from "../lib/db";
 import { currencies, shippingZones, shippingRates, products, paymentMethods } from "../lib/db/schema";

@@ -1,3 +1,5 @@
+import { config } from "dotenv";
+config({ path: ".env.local" });
 import { defineConfig } from "drizzle-kit";
 
 // Migrate/generate credentials: unpooled URL for Neon (DDL-safe),
