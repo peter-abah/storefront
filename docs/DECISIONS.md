@@ -1,6 +1,6 @@
 # Decisions — Maison Editorial Shop (Home & Living)
 
-- **Version:** 1.2 (locked for V1)
+- **Version:** 1.4 (locked for V1)
 - **Worktree:** `../storefront-build` on `feature/shop-v1`
 - **Scope of this file:** decisions only. PRD lives in `PRD.md`, system design in `ARCHITECTURE.md`.
 - **Rule:** any change to these decisions requires a new ADR entry + PRD/ARCH update. No silent drift.
@@ -101,6 +101,51 @@
 - **Why:** Replies must reach the shop, not the sandbox sender; contact previously lived in 3+ places with empty-state divergence (footer mailto hid, emails fell back to buyer address).
 - **Consequence:** New optional env keys in `.env.example` (no secrets); prod domain swap remains provider impl + env only.
 
+## ADR-015 — Contact single-source enforcement (reverses scattered contact reads)
+
+- **Decision:** Every contact/URL surface reads `lib/contact.ts` — 9 import sites (6 legal pages + footer + checkout page + `lib/email/notify.ts`, which now uses `CONTACT` + `supportEmail()` + `appUrl()` instead of dynamic import + inline `APP_URL` fallback); templates gain `whatsappDisplay` alongside `whatsappUrl` (HTML + text footers). All env reads use `||`, never `??` (`SUPPORT_PHONE`, `APP_URL`/`NEXT_PUBLIC_APP_URL`, `ADMIN_EMAILS`, `MAILGUN_DOMAIN`) — empty-string env must fall back, not stick.
+- **Why:** ADR-014 centralized the source but reads still diverged: `notify.ts` kept its own `APP_URL` fallback and dynamic contact import, and `??` let empty-string env masquerade as set (review failure §8.1). Scattered reads re-introduce the exact divergence ADR-014 killed.
+- **Consequence:** New contact surface = new import of `lib/contact.ts`, no local fallback. Grep `?? ""` on every env read during review.
+
+## ADR-016 — Honest checkout totals + review-confirm modal (reverses silent submit)
+
+- **Decision:** Checkout no longer submits on form submit — it opens a review-confirm modal (`role="dialog"` `aria-modal`, Tab-trapped, Escape-closes, focus returns to opener) showing lines + subtotal + zone fee + total + address summary + policy links; only explicit confirm calls `createOrder`. Form state persists to `sessionStorage` (`checkout-draft-v1`, field allowlist, zone/currency validated against live lists) so Terms/Shipping/Returns/orders links never wipe it; draft clears on success. Expired sessions surface a dedicated `sessionExpired` re-login prompt, not the generic error.
+- **Why:** One-click Place Order charged whatever the server computed at click time with no reviewed figure — any price/fee/rate drift between render and click was a silent charge. A modal forces a reviewed snapshot; the draft fixes the policy-link wipe that made shoppers retype.
+- **Consequence:** Every `createOrder` call carries the reviewed `expected*` snapshot (ADR-017). Modal follows the `CancelOrderButton` focus pattern — copy it, don't reinvent.
+
+## ADR-017 — PRICE_CHANGED re-confirm (new; server never trusts the snapshot)
+
+- **Decision:** `checkoutSchema` accepts optional `expectedSubtotalBaseCents` / `expectedShippingBaseCents` / `expectedTotalBaseCents` / `expectedRateToBase`; `createOrder` re-prices from the DB as before and, when any `expected*` is present and differs (subtotal, fee, total, or FX rate — numeric compare with string fallback), returns `{ ok:false, code:"PRICE_CHANGED", old, new }` instead of charging. The client adopts the server snapshot as the shown figure everywhere and re-confirms in-modal; zone/currency edits invalidate the last server price. `expected*` is comparison-only — charge basis stays server values.
+- **Why:** Honest totals (ADR-016) need a drift protocol: admin price/fee/rate edits between review and confirm must surface as re-confirm, not silent charge and not hard error. Returning old/new lets the shopper see exactly what moved.
+- **Consequence:** PRD F6 / ARCH §5 unchanged (server re-price, client never trusted) — this only names the drift branch. Idempotent token replays redirect WITHOUT `?new=1` so a double-submit never shows a fresh thank-you.
+
+## ADR-018 — Admin shell separation (reverses shared storefront chrome)
+
+- **Decision:** `SiteChrome` (client, `usePathname`) renders bare `{children}` on `/admin/*` — no shopper `SiteHeader`/`SiteFooter`/`CartDrawer`/`CartMerge`; admin owns its shell via `admin/layout.tsx` + `AdminNav` (client, `aria-current="page"` on the active tab). Root `layout.tsx` delegates all chrome to `SiteChrome`.
+- **Why:** Shared chrome leaked shopper navigation, footer and cart drawer into the shop-team tool and confused both audiences. Admin is a tool, not a store page — it needs density and its own nav, not marketing chrome.
+- **Consequence:** New shopper chrome must mount inside the non-admin branch of `SiteChrome`, never directly in root layout. Admin pages stay `force-dynamic` behind the existing role gate.
+
+## ADR-019 — Visual folio system (new; single editorial source)
+
+- **Decision:** `components/storefront/Editorial.tsx` owns all ornaments — `MotifMark` (four-point hairline star), `Folio` (`N°` + rule + label), `ChapterHeading`, `CatalogInterlude`, `EmptyState` — consumed across 12 files (hero, rails, grids, PDP, login, 404, orders). Supporting moves: hero object (arched figure, offset bronze frame, Fig. caption, ledger-stats row replacing stat cards); `ProductCard` anti-monotony rhythm (`index`-driven 4/3 vs 4/5 ratio + folio numbers); `animate-ticker` + `ticker-mask` (transform-only) + `story-dropcap` in `globals.css`; `StripNewParam` one-shot thank-you; shop interlude break after the 6th card; empty states teach with room pointers.
+- **Why:** Phase 3 elevation without a shared source would drift into per-page ornament dialects. One module keeps hero, rails, grids and rituals rhyming; constraints (ink/bronze on paper, no gradients/glow/gradient-text, transform/opacity-only motion, `prefers-reduced-motion`) are enforced once.
+- **Consequence:** New ornament = new export in `Editorial.tsx`, not a local one-off. PDP/hero imagery stays Unsplash illustrative per ADR-010 until the real shoot.
+
+## ADR-020 — Paystack online alongside COD (verify-before-decrement, webhook fallback, kobo integer, admin toggle)
+
+- **Decision:** Paystack inline-popup online payment ships alongside COD, off by default. `payment_methods` table (`cod` on / `paystack` off seeded; `setPaymentMethodEnabled` allowlists `cod|paystack`) with an admin Settings toggle (`PaymentMethodForm`, `role="switch"`); checkout offers only enabled methods and `getPaymentMethodsSafe` falls back to COD-only when the table is unmigrated. Orders gain `payment_method` (`cod|paystack`, default `cod`), `payment_status` (`unpaid|awaiting|paid|failed|refunded`), `paystack_ref` (unique), `paid_at`, `paystack_auth` jsonb (`last4/brand/channel`).
+- **Flow (verify-before-decrement):** `initPaystackOrder` re-uses the shared re-price (same `expected*`/`PRICE_CHANGED` honest-price guarantee as COD) and creates the order as `awaiting_payment` with frozen totals + server-minted ref (`PSK-<orderNo>-<8 random>`) — WITHOUT decrementing stock, clearing the cart, or queueing mails. The browser opens Paystack inline (`NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`, `PAYSTACK_INLINE_JS`) and returns the ref; `verifyPaystackOrder` confirms server-to-server (`GET /transaction/verify/:ref`, secret bearer), asserts `status == success` AND `amountKobo == totalBaseCents`, then `finalizePaidOrder` (atomic conditional decrements; stockout → `failed` + `paymentStatus paid` with restocked partials so the refund path stays open; idempotent on same ref; queues the 3 mails + clears the cart + fires notify only now). Webhook `POST /api/payments/paystack/webhook` is the fallback: raw-body HMAC-SHA512 check (Web Crypto, no node imports so the module stays client-safe for the confirm modal), `charge.success` only, then re-verifies server-to-server before finalizing — the event is a hint, verify is the truth; already-`paid_online`/unknown refs ack 200, signature/infra failures return 4xx/5xx so Paystack retries.
+- **Kobo integer:** `PAYSTACK_CURRENCY = NGN`; the base currency is NGN so base cents == kobo 1:1 (`baseCentsToKobo` is an identity with a positive-integer guard — fractional totals can never reach the gateway). The frozen FX snapshot is the only conversion basis, never a live rate.
+- **Lifecycle/refund:** order-machine gains a prepaid rail (`awaiting_payment → paid_online → confirmed → … → delivered`; `failed`/`refunded` prepaid-only leaves; `paid_on_delivery` blocked for prepaid via `canTransition(from, to, paymentMethod)`; buyer-cancel extends to `awaiting`/`failed` within 12h since no money is held). Admin cancel of an unpaid prepaid order restocks nothing (nothing was decremented) and marks `cancelled/failed`; cancel of a paid prepaid order restocks + attempts `POST /refund {transaction: ref}` → `refunded`, with `MANUAL_REFUND`/`REFUND_FAILED` fallbacks (restocked + `cancelled/paid`, refund in the Paystack dashboard).
+- **Why:** COD-only capped conversion and the owner scope explicitly added Paystack. Decrement-on-verify (not on init) keeps riders from chasing unpaid stock; webhook covers the popup-closed/verify-never-ran hole; integer kobo avoids the multi-currency rounding class entirely.
+- **Consequence:** `createOrder` (COD) is untouched — same re-price, same atomic stock, same mails. `checkoutSchema` gains `paymentMethod` (`cod|paystack`, default `cod`) + `paystackReference` (conditional: a ref on `cod` is rejected). Until `PAYSTACK_SECRET_KEY` + public key land, keep Paystack OFF in Admin → Settings.
+
+## ADR-021 — Separate admin auth (isolated tables/instance/cookies/routes, email+password, bootstrap, ADMIN_EMAILS retired)
+
+- **Decision:** Admin auth is a fully separate Better Auth instance (`lib/admin-auth.ts`), isolated from shopper auth (`lib/auth.ts`) on every axis: basePath `/api/admin-auth` (shopper stays `/api/auth`), email+password only (no social), `cookiePrefix "admin"` (`admin.session_token`, never collides with `better-auth.session_token`), and physically separate tables `admin_users/admin_sessions/admin_accounts/admin_verifications` via `drizzleAdapter` schema mapping — zero shared rows. Routes: public `/admin/login` + `/admin/login/reset`, protected `/admin/(protected)/*` behind `getAdminSession`/`requireAdmin` (`lib/auth-session.ts`); middleware splits Edge cookie-presence gates (admin cookie → `/admin/login`, shopper cookie → `/login`). Brute-force throttle via Better Auth `rateLimit` customRules (sign-in 5/min, sign-up + reset 3/min). Bootstrap: the very first admin self-registers (`databaseHooks` count==0 gate; count failure fails closed, and once one admin exists public sign-up is rejected — further admins via SQL/owner tooling). Password reset via `sendResetPassword` (reset URL logged server-side until admin mail is wired; `revokeSessionsOnPasswordReset` on). Admin client is `lib/admin-auth-client.ts` (`/api/admin-auth`), never the shopper client.
+- **Why:** The `ADMIN_EMAILS` auto-promote model (ADR-004) tied shop-team access to shopper Google identities and a deploy-touching env allowlist, with no password/reset story and no brute-force story. A tool audience needs credentials + throttle + reset, on sessions that can never resolve to shopper rows.
+- **Consequence:** `ADMIN_EMAILS` is RETIRED as an access gate — `getSessionProfile` no longer promotes and always upserts `customer`; the break-glass SQL promote goes with it. `ADMIN_EMAILS` REMAINS for mail routing (admin digest + `supportEmail()` fallback + queued mails), so it stays in `.env.example` with no values. Shopper flows (Google login, checkout, orders, cart) are unchanged.
+
 ---
 
 ## Env implications (summary, details in ARCHITECTURE.md)
@@ -109,12 +154,15 @@
 DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL,
 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
 CLOUDINARY_*, EMAIL_PROVIDER=mailgun, MAILGUN_* (sandbox domain, no DNS), TEST_INBOX, RESEND_API_KEY (future),
-OWNER_EMAIL, ADMIN_EMAILS, NOTIFY_SECRET
+OWNER_EMAIL, ADMIN_EMAILS (mail routing only — retired as access gate per ADR-021), NOTIFY_SECRET,
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY (browser) + PAYSTACK_SECRET_KEY (server-only verify/refund/webhook) + optional PAYSTACK_PUBLIC_KEY override (ADR-020)
 ```
 No `BASE_CURRENCY` — base is the `currencies` row with `is_base=true`.
 
 ## Change log
 
+- 2026-10-02: v1.4 — Paystack online alongside COD (ADR-020: verify-before-decrement, webhook fallback, kobo integer, admin toggle) + separate admin auth (ADR-021: isolated instance/tables/cookies/routes, email+password, bootstrap, ADMIN_EMAILS retired as gate). PRD 1.3 / ARCH 1.3 extended, COD intact.
+- 2026-10-02: v1.3 — Phase 1–4 calls: contact single-source enforcement (ADR-015), honest totals + confirm modal (ADR-016), PRICE_CHANGED re-confirm (ADR-017), admin shell separation (ADR-018), visual folio system (ADR-019). PRD/ARCH unchanged (no drift).
 - 2026-10-01: v1.2 — curated Unsplash photography mapped per category/room (ADR-010), Maison brand chrome + footer + contact identity (ADR-011). Aligned with PRD 1.2 / ARCH 1.2.
 - 2026-10-01: v1.1 — currencies fully dynamic (no `BASE_CURRENCY`); email via provider port (Mailgun sandbox V1, Resend-ready). Aligned with PRD 1.2 / ARCH 1.2.
 - 2026-10-01: v1.0 created (decisions-only step, no code).

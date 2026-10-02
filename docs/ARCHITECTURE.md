@@ -1,7 +1,7 @@
 # Architecture — Maison Editorial Shop
 
-- **Version:** 1.2 (matches PRD 1.2 + DECISIONS 1.1)
-- **Stack (locked):** Next.js 15 App Router + TS + Tailwind, Neon Postgres (prod) / Docker Postgres 16 (dev) + Drizzle ORM (`neon-http` vs `postgres-js` auto-switch in `lib/db.ts`), Better Auth + `@better-auth/drizzle-adapter` (`provider: 'pg'`, Google social only), Cloudinary Free, Mailgun REST (sandbox V1), Vercel Free.
+- **Version:** 1.3 (matches PRD 1.3 + DECISIONS 1.4)
+- **Stack (locked):** Next.js 15 App Router + TS + Tailwind, Neon Postgres (prod) / Docker Postgres 16 (dev) + Drizzle ORM (`neon-http` vs `postgres-js` auto-switch in `lib/db.ts`), Better Auth ×2 (`auth.ts` Google shoppers + `admin-auth.ts` email+password admin, `@better-auth/drizzle-adapter` `provider: 'pg'`), Cloudinary Free, Mailgun REST (sandbox V1), Paystack inline + verify/refund + webhook, Vercel Free.
 - **Why:** Neon is Postgres (serverless). No Supabase → auth + storage split out. Drizzle is the sole DB client with one schema + one migration chain for both DBs; `lib/db.ts` picks `neon-http` when `DATABASE_URL` contains `neon.tech`, else `postgres-js` TCP for local Docker. Better Auth keeps Google sessions in the same DB via the Drizzle adapter so one DB remains source of truth per environment.
 
 ---
@@ -9,24 +9,26 @@
 ## 1. System diagram
 
 ```
-Browser (luxury editorial UI, Lenis, drawer cart)
+Browser (luxury editorial UI, Lenis, drawer cart, Paystack inline popup)
   │ HTTPS
 Vercel — Next.js 15 (Node runtime for auth/actions)
-  ├─ RSC / Server Actions (createOrder, cart mutations, admin mutations)
-  ├─ Route Handlers (/api/auth/[...auth], /api/orders/notify, /api/health)
-  ├─ Middleware (auth gate via Better Auth session: /checkout, /orders/*, /admin/*)
+  ├─ RSC / Server Actions (createOrder COD, init/verifyPaystackOrder, cart mutations, admin mutations incl. refunds + method toggle)
+  ├─ Route Handlers (/api/auth/[...all] shopper, /api/admin-auth/[...all] admin, /api/payments/paystack/webhook, /api/orders/notify, /api/health)
+  ├─ Middleware (split cookie-presence gates: shopper cookie → /checkout, /orders/* → /login; admin cookie → /admin/* → /admin/login)
   │
   ├─ Drizzle (neon-http vs postgres-js auto-switch) ──► Postgres
   │     Neon (prod, via Vercel env) OR local Docker 16 (dev, docker compose up -d db)
-  │     user/session/account/verification (Better Auth, generated via CLI)
-  │     profiles, products, carts, orders, currencies, zones, email_log
+  │     user/session/account/verification (shopper Better Auth, generated via CLI)
+  │     admin_users/admin_sessions/admin_accounts/admin_verifications (isolated admin Better Auth)
+  │     profiles, products, carts, orders (+payment_method/status/ref/paid_at/auth), payment_methods, currencies, zones, email_log
   │
   ├─ next-cloudinary / fetch ──► Cloudinary CDN (images, f_auto,q_auto)
-  └─ mailgun.js / fetch ──► Mailgun API (buyer + owner + admin)
-Google Cloud Console (OAuth consent + Web Client) ◄─► Better Auth callback
+  ├─ mailgun.js / fetch ──► Mailgun API (buyer + owner + admin)
+  └─ fetch (secret bearer) ◄─► Paystack API (transaction verify, refund, webhook HMAC)
+Google Cloud Console (OAuth consent + Web Client) ◄─► shopper Better Auth callback
 ```
 
-No direct DB access from client. All writes via server actions with Better Auth session + role check. `nextCookies()` plugin required or actions see `null` session.
+No direct DB access from client. All writes via server actions with the matching auth session (shopper `auth` / isolated `adminAuth`) + admin-session check. `nextCookies()` plugin (last) required on BOTH instances or actions see `null` session. `lib/paystack.ts` stays client-safe (Web Crypto HMAC, no node imports) — secret-bearing verify/refund live in actions + webhook route only.
 
 ## 2. Repo layout (to be scaffolded next, NOT in this docs-only step)
 
@@ -34,16 +36,18 @@ No direct DB access from client. All writes via server actions with Better Auth 
 app/
   (store)/page.tsx shop/page.tsx product/[slug]/page.tsx cart/page.tsx
   checkout/page.tsx orders/page.tsx orders/[id]/page.tsx login/page.tsx
-  admin/layout.tsx (role gate) admin/page.tsx admin/products/ admin/orders/ admin/settings/ admin/emails/
-  api/auth/[...all]/route.ts (Better Auth: toNextJsHandler, default basePath) api/orders/notify/route.ts api/health/route.ts
+  admin/login/page.tsx (+ reset/) admin/(protected)/layout.tsx (admin-session gate) admin/(protected)/page.tsx admin/(protected)/products/ admin/(protected)/orders/ admin/(protected)/settings/ admin/(protected)/emails/
+  api/auth/[...all]/route.ts (shopper: toNextJsHandler(auth)) api/admin-auth/[...all]/route.ts (admin: toNextJsHandler(adminAuth)) api/payments/paystack/webhook/route.ts api/orders/notify/route.ts api/health/route.ts
 components/ (ui + storefront + cart + checkout + orders + admin + email)
 lib/
-  db.ts (neon-http drizzle instance) / db/schema.ts (sole schema) / db/queries/
-  auth.ts (betterAuth + drizzleAdapter pg + nextCookies + google) / auth-client.ts (createAuthClient)
-  actions/ (cart, checkout/createOrder, admin-*) / validations.ts / currencies.ts (base resolved via is_base, no hardcoded code) / shipping.ts
-  email/provider.ts (port) / email/mailgun.ts (V1) / email/resend.ts (stub) / email/index.ts (factory) / cloudinary.ts / rate-limit.ts / order-machine.ts
-drizzle/ (migrations generated by drizzle-kit; auth tables via `npx @better-auth/cli generate`)
-scripts/seed.ts
+  db.ts (neon-http drizzle instance) / db/schema.ts (sole schema) / db/queries/ db/admin-auth-schema.ts (isolated admin tables)
+  auth.ts (shopper betterAuth + drizzleAdapter pg + nextCookies + google) / auth-client.ts (createAuthClient)
+  admin-auth.ts (isolated betterAuth: /api/admin-auth, email+password, cookiePrefix admin, bootstrap gate, rateLimit) / admin-auth-client.ts / auth-session.ts (getSessionProfile shopper-only + getAdminSession/requireAdmin)
+  actions/ (cart, checkout/createOrder + init/verifyPaystackOrder, admin-* incl. refunds + payment methods) / validations.ts (paymentMethodSchema, conditional paystackReference) / currencies.ts (base resolved via is_base, no hardcoded code) / shipping.ts
+  paystack.ts (client-safe: kobo, inline JS URL, refs, server verify/refund clients, Web Crypto HMAC) / payments.ts (getPaymentMethodsSafe, finalizePaidOrder, queueOrderEmails — shared by actions + webhook, no "use server")
+  email/provider.ts (port) / email/mailgun.ts (V1) / email/resend.ts (stub) / email/index.ts (factory) / cloudinary.ts / rate-limit.ts / order-machine.ts (COD rail + prepaid rail, canTransition with paymentMethod)
+drizzle/ (migrations generated by drizzle-kit; auth tables via `npx @better-auth/cli generate`; 0002 payment_methods + order payment cols; 0003 admin_* tables)
+scripts/seed.ts (seeds payment_methods: cod on / paystack off)
 docs/PRD.md docs/ARCHITECTURE.md docs/DECISIONS.md
 ```
 
@@ -69,6 +73,9 @@ orders: id uuid PK, number text unique (e.g. MS-2026-0001), user_id FK, email,
   currency_code FK, fx_rate_snapshot numeric, subtotal_base_cents, shipping_base_cents, total_base_cents,
   address jsonb {name,phone,country,state,city,street,postal,zone_id,notes}, created_at
 order_items: order_id FK, product_id FK, seller_id (owner FK, V1 single), qty, unit_base_cents, PK(order_id,product_id)
+payment_methods: code text PK ('cod'|'paystack'), enabled bool default true, label text — seed: cod on, paystack off; checkout offers enabled-only; unmigrated DB falls back to COD-only
+orders adds: payment_method text default 'cod', payment_status text default 'unpaid' ('unpaid'|'awaiting'|'paid'|'failed'|'refunded'), paystack_ref text unique, paid_at timestamp, paystack_auth jsonb {last4,brand,channel}
+admin_users/admin_sessions/admin_accounts/admin_verifications: isolated admin Better Auth tables (drizzleAdapter schema mapping in lib/admin-auth.ts) — no FKs cross to shopper tables
 email_log: id uuid PK, order_id FK, to_email, type enum('buyer_confirm','owner_fulfill','admin_digest'),
   status enum('pending','sent','failed'), provider_msg_id, error text, attempts int, created_at
 ```
@@ -79,38 +86,44 @@ Money rule: store base cents only against whichever `currencies` row has `is_bas
 
 Shipping rule: `fee = first rate where subtotal >= min_subtotal ordered desc` for chosen zone. Admin can model "free over X" via `fee_cents=0` row.
 
-## 4. Auth flow (Google-only, Better Auth)
-1. User clicks Continue with Google → `authClient.signIn.social({ provider: 'google', callbackURL: '/shop' })` → Google OAuth (Cloud Console client).
-2. Callback `/api/auth/callback/google` (handled by `toNextJsHandler(auth)` in `[...auth]`) → drizzleAdapter creates `user+account+session` in Neon.
-3. First-sign-in hook: if `email in ADMIN_EMAILS.split(',')` → upsert `profiles.role='admin'` else `'customer'`. No `better-auth/admin` plugin in V1, no public promote endpoint.
-4. Server Actions: `auth.api.getSession({ headers: await headers() })` (Node runtime, `nextCookies()` required). Middleware: session-cookie check; `/admin/*` additionally queries `profiles.role`.
-5. Secrets: `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID/SECRET`, `DATABASE_URL` — server-only, set in Vercel env + `.env.local` (never committed). Forgetting `BETTER_AUTH_URL` in prod breaks OAuth callbacks (most common deploy bug).
+## 4. Auth flow (Google shoppers + isolated email+password admin)
+1. Shopper clicks Continue with Google → `authClient.signIn.social({ provider: 'google', callbackURL: '/shop' })` → Google OAuth (Cloud Console client).
+2. Callback `/api/auth/callback/google` (handled by `toNextJsHandler(auth)` in `[...all]`) → drizzleAdapter creates `user+account+session` in Neon.
+3. `getSessionProfile` upserts a `profiles` row, ALWAYS `customer` — `ADMIN_EMAILS` no longer promotes (retired as access gate per ADR-021; kept for mail routing only).
+4. Admin goes to `/admin/login` → `adminAuthClient.signIn.email(...)` → isolated instance (`lib/admin-auth.ts`, basePath `/api/admin-auth`, `admin.session_token` cookie) → `admin_users/admin_sessions/...` rows. Bootstrap: zero-row DB allows the first self-register; afterwards public sign-up is rejected. Throttle: 5 sign-in/min, 3 sign-up + reset/min. Reset URL is server-logged until admin mail is wired.
+5. Server Actions: shopper `auth.api.getSession` vs admin `adminAuth.api.getSession` (`getAdminSession`/`requireAdmin`), both Node runtime with `nextCookies()` last. Middleware: Edge cookie-presence split only (no DB) — shopper cookie for `/checkout`, `/orders/*` (→ `/login`), admin cookie for `/admin/*` except `/admin/login*` (→ `/admin/login`).
+6. Secrets: `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID/SECRET`, `DATABASE_URL` — server-only, set in Vercel env + `.env.local` (never committed). Forgetting `BETTER_AUTH_URL` in prod breaks OAuth callbacks (most common deploy bug). Admin passwords live in `admin_accounts` — no `ADMIN_*` credential env exists.
 
-## 5. Checkout transaction (server action pseudocode)
+## 5. Checkout transactions (server action pseudocode)
+COD (`createOrder`, unchanged):
 ```
 session = auth.api.getSession({ headers: await headers() }) else redirect /login
-cart = db carts+items+products (active only)
-if empty → error
-for line: live = products.price_base_cents, assert stock >= qty else throw OutOfStock(line)
-subtotal = sum(live*qty)
-zone fee = shipping_rates lookup (zone from form, subtotal)
-currency = currencies lookup (must be active)
-total_base = subtotal + fee
-tx: insert orders(number=seq, snapshot totals+address+fx), insert order_items, decrement products.stock, clear cart, insert 3× email_log pending
+repriceForCheckout(userId, {currency, zone, expected*}): cart RAW + live products → stock check → zone tier → currency → PRICE_CHANGED(old,new) on drift
+idempotency: orders.client_token unique — replay returns first order WITHOUT ?new=1
+tx (sequential, NEVER db.transaction): insert orders(payment_method='cod', snapshot totals+address+fx), insert order_items, decrement products.stock (conditional UPDATEs + compensate), clear cart, insert 3× email_log pending
 afterCommit: fetch('/api/orders/notify', {orderId}) — background, 2s timeout, idempotent
 return orderId
 ```
-Idempotency: `Idempotency-Key: cartId+checkoutAttempt` header or `orders.client_token unique` to prevent double-submit.
+Paystack (`initPaystackOrder` → popup → `verifyPaystackOrder`, webhook fallback):
+```
+init: same session + SAME repriceForCheckout (identical drift guarantee) → require paystack method enabled → insert orders(status='awaiting_payment', payment_status='awaiting', paystack_ref=server-minted 'PSK-<no>-<rand>') — NO stock/cart/mail side effects → return {orderId, ref, kobo=totalBaseCents (integer-guarded, NGN ⇒ cents==kobo), publicKey}
+browser: Paystack inline popup (NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY) charges kobo → returns ref
+verify: GET /transaction/verify/:ref (secret bearer) → assert status=='success' AND amountKobo==totalBaseCents → finalizePaidOrder (idempotent on same ref; conditional decrements; stockout → failed/paid + restock partials; paid_online/paid + queue mails + clear cart + notify)
+webhook POST /api/payments/paystack/webhook: req.text() raw → HMAC-SHA512 vs x-paystack-signature → charge.success only → order lookup by paystack_ref → RE-verify server-to-server → finalizePaidOrder. Already-paid/unknown refs ack 200; bad signature/infra → 4xx/5xx (Paystack retries)
+```
+Idempotency: COD `orders.client_token unique`; Paystack `paystack_ref unique` + same-ref `paid_online` short-circuit + `queueOrderEmails` `onConflictDoNothing` (verify + webhook can race).
+Admin cancel of paid prepaid: restock + `POST /refund {transaction: ref}` → `refunded`; missing ref/secret or gateway failure → `cancelled/paid` + `MANUAL_REFUND`/`REFUND_FAILED` (refund in Paystack dashboard).
 
 ## 6. Email flow (provider port, Mailgun sandbox V1)
 `POST /api/orders/notify {orderId, secret==NOTIFY_SECRET}`:
+- Mails are queued ONLY at finalize time: COD `createOrder` inserts the 3 pending rows; Paystack `finalizePaidOrder` inserts them (`onConflictDoNothing` — verify + webhook race) — `awaiting_payment` orders never mail.
 - Load order + items + zone + currency. If already `sent` for type → skip.
 - Render 3 HTML (shared luxury tokens: Fraunces headings, paper bg, bronze rule).
 - Send via `lib/email/` port (`EMAIL_PROVIDER=mailgun` now, `resend` later): `Promise.allSettled([provider buyer, owner, admin])` → update `email_log` with provider name + msg-id/error, retry 3x exp backoff.
 - Admin Resend button re-calls same endpoint per failed row.
 - V1 = Mailgun **sandbox** (no custom domain): sandbox domain + authorized test inbox; all 3 mails fan out to it in dev. Swapping to verified domain or Resend = provider impl + env only.
 
-Mailgun config: `EMAIL_PROVIDER=mailgun`, `MAILGUN_API_KEY, MAILGUN_DOMAIN (sandbox domain), MAILGUN_FROM, MAILGUN_REGION, ADMIN_EMAILS, OWNER_EMAIL`. Free 100/day sufficient (1 order = 3 emails → ~33 orders/day cap). Resend future: `RESEND_API_KEY` + `email/resend.ts` impl, no other changes.
+Mailgun config: `EMAIL_PROVIDER=mailgun`, `MAILGUN_API_KEY, MAILGUN_DOMAIN (sandbox domain), MAILGUN_FROM, MAILGUN_REGION, ADMIN_EMAILS (mail routing: admin digest + support fallback — NOT an access gate), OWNER_EMAIL`. Free 100/day sufficient (1 order = 3 emails → ~33 orders/day cap). Resend future: `RESEND_API_KEY` + `email/resend.ts` impl, no other changes. Admin reset mail is NOT on this port yet (reset URL server-logged).
 
 ## 7. Images (Cloudinary Free)
 - Admin upload via signed preset → store returned `secure_url` + blur placeholder in `products.images`.
@@ -127,10 +140,14 @@ GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
 NEXT_PUBLIC_APP_URL=http://localhost:3000 (prod: Vercel URL, for auth-client baseURL)
 CLOUDINARY_CLOUD_NAME=... CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=...
 EMAIL_PROVIDER=mailgun
-MAILGUN_API_KEY=... MAILGUN_DOMAIN=... (sandbox domain, no custom DNS) MAILGUN_FROM=... OWNER_EMAIL=... ADMIN_EMAILS=a@x,b@y
+MAILGUN_API_KEY=... MAILGUN_DOMAIN=... (sandbox domain, no custom DNS) MAILGUN_FROM=... OWNER_EMAIL=... ADMIN_EMAILS=a@x,b@y (mail routing only, never access)
 TEST_INBOX=... (Mailgun authorized recipient; all 3 mails fan out here in sandbox)
 RESEND_API_KEY=... (future only, unused in V1)
 NOTIFY_SECRET=...
+# Payments (Paystack inline + verify/refund + webhook; ADR-020). Public key ships to the browser; secret stays server-only. Until both land, keep Paystack OFF in Admin → Settings.
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=... (browser inline popup)
+PAYSTACK_SECRET_KEY=... (server-only: verify, refunds, webhook HMAC)
+# PAYSTACK_PUBLIC_KEY=... (optional override for the non-public name)
 ```
 No `BASE_CURRENCY` — base currency is the `currencies` row with `is_base=true`.
 
@@ -151,7 +168,11 @@ No `BASE_CURRENCY` — base currency is the `currencies` row with `is_base=true`
 
 ## 11. Branching (this repo)
 - `main` = clean, deploys prod. `feature/shop-v1` in `../storefront-build` = all work. PR `feature/shop-v1 → main` with green `pnpm build + drizzle check`. After merge: `git worktree remove ../storefront-build`.
-- Docs set: `PRD.md` (v1.1) + `ARCHITECTURE.md` (v1.1) + `DECISIONS.md` (v1.0). No app code yet. Next step (when approved): scaffold Next.js + Drizzle + Better Auth in the worktree.
+- Docs set: `PRD.md` (v1.3) + `ARCHITECTURE.md` (v1.3) + `DECISIONS.md` (v1.4). Before the PR: `rm -rf .next && pnpm build` (Phase 6 code is tsc-clean but has no full-build run yet — HANDOFF §10).
+- Next step (when approved): Paystack keys → flip toggle in Admin → Settings → live test charge + webhook replay.
+
+## 12. Change log
+- 1.3 (2026-10-02): Paystack online (init/verify/webhook, `payment_methods` + order payment cols, kobo integer, prepaid rail, refund-on-cancel) + separate admin auth (isolated instance/tables/cookies/routes, bootstrap, throttle). Auth/checkout/email/env sections rewritten; COD paths intact. Aligned with PRD 1.3 / DECISIONS 1.4.
 
 ## 12. Change log
 - 1.2 (2026-10-01): Currencies fully dynamic (no `BASE_CURRENCY`; `is_base` resolved at runtime). Email via provider port (`EMAIL_PROVIDER`, Mailgun sandbox V1, Resend-ready stub). Aligned with PRD 1.2 / DECISIONS 1.1.

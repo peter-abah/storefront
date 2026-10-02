@@ -1,11 +1,11 @@
 # PRD — Maison Editorial Shop (Home & Living)
 
-- **Version:** 1.2 (locked for V1 build)
+- **Version:** 1.3 (locked for V1 build)
 - **Status:** Approved for implementation
-- **Store model:** Single store, physical goods, Cash on Delivery only
+- **Store model:** Single store, physical goods, Cash on Delivery + Paystack online (Paystack off by default behind admin toggle)
 - **Catalog:** Large (~150 seed products), Home & Living
 - **Design language:** Luxury editorial, Awwwards cinematic
-- **Stack:** Next.js 15 + Neon Postgres + Drizzle (`neon-http`) + Better Auth (Google) + Cloudinary + Mailgun — see `DECISIONS.md` ADR-001–009
+- **Stack:** Next.js 15 + Neon Postgres + Drizzle (`neon-http`) + Better Auth (Google shoppers + separate email+password admin) + Cloudinary + Mailgun + Paystack — see `DECISIONS.md` ADR-001–009, ADR-020–021
 - **Worktree:** `../storefront-build` on branch `feature/shop-v1` (main stays clean)
 
 ---
@@ -14,7 +14,7 @@
 
 A shop that feels like an interiors magazine that happens to sell. Editorial room stories, oversized serif headlines, warm paper surfaces — with a boringly reliable checkout underneath: Google login, live zone fees, admin-driven currencies, branded order emails.
 
-No online payment in V1. COD only keeps costs at $0 and removes gateway risk.
+Pay COD at the door, or pay now online via Paystack (cards, transfers, USSD) — the shopper picks at checkout from whatever methods the admin has enabled. COD stays fully intact as the default.
 
 ## 2. Goals / Non-Goals
 
@@ -22,14 +22,14 @@ No online payment in V1. COD only keeps costs at $0 and removes gateway risk.
 1. Browse 100s of Home & Living products with search, room/category filters, sort, pagination.
 2. Google-only login (Better Auth library + Google Cloud Console) required to order.
 3. Persistent cart (DB for logged users, localStorage merge on login).
-4. Industry-standard COD checkout with live shipping-zone fee + admin-driven currency switch.
-5. Server-validated orders (re-price from DB, stock check, transactional insert).
-6. Branded Mailgun emails to buyer + owner/seller + admin on every order, with retry + log.
-7. Admin dashboard: products CRUD + stock, orders lifecycle, currencies, shipping zones/rates.
-8. $0 infra: Next.js on Vercel Free, Neon Free Postgres, Cloudinary Free, Mailgun Free 100/day.
+4. Industry-standard checkout (COD + Paystack) with live shipping-zone fee + admin-driven currency switch + honest totals (review-confirm modal, `PRICE_CHANGED` re-confirm on drift).
+5. Server-validated orders (re-price from DB, stock check, transactional insert; Paystack orders decrement stock only after gateway verify).
+6. Branded Mailgun emails to buyer + owner/seller + admin on every paid/placed order, with retry + log.
+7. Admin dashboard: products CRUD + stock, orders lifecycle (+ Paystack refunds), currencies, shipping zones/rates, payment-method toggle.
+8. $0 infra before gateway fees: Next.js on Vercel Free, Neon Free Postgres, Cloudinary Free, Mailgun Free 100/day. (Paystack per-transaction fees apply only to online payments.)
 
 **Non-Goals (explicitly out of V1):**
-- Online payment (Paystack/Flutterwave/Stripe), discounts/coupons, reviews, wishlist, multi-vendor onboarding, multi-language, native apps.
+- Discounts/coupons, reviews, wishlist, multi-vendor onboarding, multi-language, native apps.
 
 ## 3. Personas
 
@@ -58,31 +58,32 @@ Required per product: `slug, name, tagline, story (rich text), price_base_cents,
 - Images: 3–5 per product, `w_1200,q_auto,f_auto`, LQIP blur placeholder.
 - Seed: realistic Nigerian + international names, plausible stock (0–40, some 0 for out-of-stock state).
 
-### F4. Auth — Google-only (Better Auth)
-- Better Auth library, Google social provider only, `drizzleAdapter` (`provider: 'pg'`), sessions in Neon (`user/session/account/verification` tables generated via `npx @better-auth/cli generate`).
+### F4. Auth — Google-only shoppers (Better Auth) + separate email+password admin
+- Shopper: Better Auth library, Google social provider only, `drizzleAdapter` (`provider: 'pg'`), sessions in Neon (`user/session/account/verification` tables generated via `npx @better-auth/cli generate`).
 - `nextCookies()` plugin required so Server Actions see the session. Client via `createAuthClient()` (`signIn.social({ provider: 'google' })`).
 - Single catch-all route `app/api/auth/[...auth]/route.ts` via `toNextJsHandler(auth)`. OAuth callback `/api/auth/callback/google`.
 - Google Cloud Console: External consent + Web Client, origins `http://localhost:3000` + Vercel URL, redirect `<app>/api/auth/callback/google`.
-- Middleware protects `/checkout`, `/orders/*`, `/admin/*`. `/login` shows single "Continue with Google" (no email/password V1).
-- First admin: `ADMIN_EMAILS` env allowlist. On first sign-in, if email in allowlist → `profiles.role='admin'`. No public promote endpoint and no `better-auth/admin` plugin in V1. Manual SQL promote as break-glass only.
-- Acceptance: guest hitting `/checkout` redirects to login + returns post-login; admin email gets admin on first login.
+- Middleware protects `/checkout`, `/orders/*` (shopper cookie), `/admin/*` (admin cookie — split gates, separate redirect targets `/login` vs `/admin/login`). `/login` shows single "Continue with Google" (no email/password for shoppers).
+- Admin: a SECOND Better Auth instance (`lib/admin-auth.ts`, basePath `/api/admin-auth`, `cookiePrefix "admin"` → `admin.session_token`), email+password only, on isolated `admin_users/admin_sessions/admin_accounts/admin_verifications` tables (zero shared rows with shoppers). `/admin/login` (+ password reset) is public; `/admin/(protected)/*` requires the admin session. Brute-force throttle on credential endpoints. First-ever admin self-registers (bootstrap gate: zero rows); after that public sign-up is rejected — further admins via SQL/owner tooling. `ADMIN_EMAILS` is retired as an access gate (kept for mail routing only) — see ADR-021.
+- Acceptance: guest hitting `/checkout` redirects to login + returns post-login; non-admin hitting `/admin` lands on `/admin/login`; shopper Google session never grants admin and admin session never grants shopper flows.
 
 ### F5. Cart
 - Logged: `carts`/`cart_items` in Neon. Guest: localStorage. On login: merge guest → DB (sum qty, clamp to stock).
 - Drawer + `/cart` page: qty steppers, remove, subtotal in selected currency, shipping estimate after zone select.
 - Acceptance: refresh persists; stock clamp message when qty > stock.
 
-### F6. COD Checkout (industry standard)
-- Form: contact (name prefilled, email prefilled locked to Google account, required phone for rider), address (country, state/region, city, street, postal, delivery-zone select), notes optional, currency select (from `currencies` table), order review (lines + subtotal + zone fee + total), Place Order CTA.
-- No card fields. Phone validated (E.164-ish, min 7 digits). Zone required before submit so fee is explicit.
-- Server action `createOrder`: session via Better Auth (`auth.api.getSession`) → load cart → re-price every line from `products` (ignore client totals) → validate stock → compute subtotal + zone fee in base currency → convert display total via `currencies.rate_to_base` but freeze `total_base_cents + currency_code + fx_rate_snapshot` on order → insert `orders + order_items` in transaction → decrement stock → create `email_log` rows (buyer/seller/admin pending) → trigger notify (async, don't block response >2s).
-- Acceptance: tampered client price does not affect order; oversell prevented (last-write wins with stock check); totals match admin zone table.
+### F6. Checkout — COD + Paystack (industry standard, honest totals)
+- Form: contact (name prefilled, email prefilled locked to Google account, required phone for rider), address (country, state/region, city, street, postal, delivery-zone select), notes optional, currency select (from `currencies` table), **payment-method select (from `payment_methods` table — COD default)**, order review (lines + subtotal + zone fee + total), review-confirm modal, Place Order / Pay CTA.
+- No card fields (Paystack collects card/bank details in its own inline popup). Phone validated (E.164-ish, min 7 digits). Zone required before submit so fee is explicit.
+- COD path (`createOrder`, unchanged): session via Better Auth (`auth.api.getSession`) → load cart → re-price every line from `products` (ignore client totals; `expected*` snapshot comparison-only → `PRICE_CHANGED` re-confirm on drift) → validate stock → compute subtotal + zone fee in base currency → convert display total via `currencies.rate_to_base` but freeze `total_base_cents + currency_code + fx_rate_snapshot` on order → insert `orders + order_items` (`payment_method='cod'`, `payment_status='unpaid'`) → decrement stock → create `email_log` rows (buyer/seller/admin pending) → trigger notify (async, don't block response >2s).
+- Paystack path (ADR-020): `initPaystackOrder` runs the SAME shared re-price (identical drift guarantee), then inserts the order as `awaiting_payment` with frozen totals + server-minted `PSK-` reference — no stock decrement, no cart clear, no mails. Shopper completes the inline popup; `verifyPaystackOrder` verifies server-to-server and asserts gateway `success` + kobo amount == order total, then finalizes (decrement stock atomically, `paid_online`/`paid`, queue mails, clear cart, notify). Webhook (`charge.success`, HMAC-checked, re-verified) covers the popup-closed/verify-never-ran case idempotently. Amounts are integer base minor units end-to-end (base NGN ⇒ cents == kobo 1:1). Paystack stays OFF in Admin → Settings until `PAYSTACK_SECRET_KEY` + public key land.
+- Acceptance: tampered client price does not affect either path; oversell prevented (last-write wins with stock check); totals match admin zone table; killing the browser mid-popup leaves an `awaiting_payment` order with full stock and no mails; replaying a paid reference returns success without double-decrement.
 
 ### F7. Orders + lifecycle
-- Shopper: `/orders`, `/orders/[id]` with timeline (Placed → Confirmed → Out for delivery → Delivered + Paid) + totals snapshot + address snapshot.
-- Admin: confirm, mark out-for-delivery, mark delivered+paid, cancel (restocks). COD `paid_on_delivery` flag set only on delivered+paid.
-- Statuses: `pending, confirmed, out_for_delivery, delivered, paid_on_delivery (implies delivered), cancelled`.
-- Acceptance: cancel restores stock; delivered requires confirmed first (state machine enforced server-side).
+- Shopper: `/orders`, `/orders/[id]` with timeline (COD rail: Placed → Confirmed → Out for delivery → Delivered + Paid; Paystack rail: Awaiting payment → Paid online → Confirmed → Out for delivery → Delivered) + totals snapshot + address snapshot + payment method.
+- Admin: confirm, mark out-for-delivery, mark delivered+paid (COD only — prepaid orders never touch `paid_on_delivery`; `delivered` is terminal once paid), cancel (restocks; paid prepaid orders refund via Paystack → `refunded`, with manual-dashboard fallback).
+- Statuses: `pending, awaiting_payment, paid_online, confirmed, out_for_delivery, delivered, paid_on_delivery (COD only, implies delivered), failed, cancelled, refunded`.
+- Acceptance: cancel restores stock; delivered requires confirmed first (state machine enforced server-side); buyer-cancel stays 12h while no money is held (`pending` COD, `awaiting_payment`/`failed` prepaid) — paid orders go through support.
 
 ### F8. Currencies + shipping (both admin-driven, not code)
 - `currencies(code PK, symbol, label, rate_to_base DECIMAL, is_base BOOL, active)` with exactly one `is_base=true`. Code never names a specific currency — it reads the base row at runtime. Product `price_base_cents` is always in base currency. Display = base / rate. Order freezes `currency_code + fx_rate_snapshot`.
@@ -101,9 +102,9 @@ Required per product: `slug, name, tagline, story (rich text), price_base_cents,
 - Acceptance: 1 order → 3 logs `sent` (to authorized inbox in sandbox); provider down → `pending` + retry cron/manual resend button in admin.
 
 ### F10. Admin dashboard
-- `/admin`: KPI strip (pending count, low-stock, revenue COD collected), tabs: Products (table + CRUD modal + Cloudinary upload preset + active toggle), Orders (filter by status, detail drawer, action buttons), Currencies, Zones/Rates, Email log + Resend.
-- All mutations server-side + session + role check (`profiles.role='admin'`). Audit via `updated_by`.
-- Acceptance: non-admin hitting `/admin` gets 403 + redirect; every product/order mutation works without code deploy.
+- `/admin/login` (email+password, isolated admin session) → `/admin`: KPI strip (pending count, low-stock, revenue COD collected), tabs: Products (table + CRUD modal + Cloudinary upload preset + active toggle), Orders (filter by status, detail drawer, action buttons incl. Paystack refund-on-cancel), Currencies, Zones/Rates, Payment methods (COD/Paystack toggle), Email log + Resend.
+- All mutations server-side + admin session check (`getAdminSession` on the isolated instance — shopper sessions grant nothing). Audit via `updated_by`.
+- Acceptance: non-admin hitting `/admin` lands on `/admin/login`; shopper Google login grants no admin access; every product/order/method mutation works without code deploy.
 
 ## 5. UX Requirements
 - Mobile-first responsive, container queries for cards, critical CTA never hidden on mobile.
@@ -118,9 +119,10 @@ Required per product: `slug, name, tagline, story (rich text), price_base_cents,
 - Observability: `email_log` + Vercel logs; admin can resend failed emails.
 
 ## 7. User Journeys (happy paths)
-1. **Guest → buyer:** lands hero → Shop by Room → filters + search → product story → Add → drawer → Checkout (forced login) → Google → address + zone + currency → Place → success + 3 emails → track in /orders.
-2. **Admin restock:** login (allowlisted) → /admin/products → edit stock → active → visible immediately.
-3. **Admin fulfill:** new order email → /admin/orders → Confirm → Out for delivery → Delivered+Paid → buyer timeline updates.
+1. **Guest → buyer (COD):** lands hero → Shop by Room → filters + search → product story → Add → drawer → Checkout (forced login) → Google → address + zone + currency + Cash on Delivery → review-confirm → Place → success + 3 emails → track in /orders.
+2. **Guest → buyer (Paystack):** same to checkout → Pay now → review-confirm → inline popup → gateway charge → server verify (or webhook fallback) → `paid_online` + 3 emails → track in /orders with online-paid timeline.
+3. **Admin restock:** `/admin/login` (email+password) → /admin/products → edit stock → active → visible immediately.
+4. **Admin fulfill:** new order email → /admin/orders → Confirm → Out for delivery → Delivered(+Paid for COD) → buyer timeline updates. Paid online order cancelled → restock + Paystack refund → `refunded`.
 
 ## 8. Roadmap (build order)
 M0 scaffold → M1 catalog+seed → M2 auth+roles → M3 cart+checkout → M4 emails → M5 admin settings → M6 polish/deploy/PR.
@@ -132,9 +134,10 @@ M0 scaffold → M1 catalog+seed → M2 auth+roles → M3 cart+checkout → M4 em
 - Free-tier pause/limits — monitor CU-hrs + storage in Neon dashboard.
 
 ## 10. Definition of Done (V1)
-`pnpm build` clean, Drizzle migrations apply fresh, seed 150, Better Auth Google login → COD order → 3 branded emails logged `sent`, admin can change price/currency/zone without deploy, Vercel preview URL green, PR `feature/shop-v1 → main` with PRD + architecture + decisions linked.
+`pnpm build` clean, Drizzle migrations apply fresh, seed 150 (+ `cod` on / `paystack` off methods), Better Auth Google login → COD order → 3 branded emails logged `sent`, Paystack test charge → `paid_online` → 3 mails (webhook fallback proven by replay), admin email+password login → toggle Paystack on/off without deploy, admin can change price/currency/zone without deploy, Vercel preview URL green, PR `feature/shop-v1 → main` with PRD + architecture + decisions linked.
 
 ## 11. Change log
+- 1.3 (2026-10-02): Paystack online alongside COD (F6 `payment_method` + init/verify/webhook + kobo integer + admin toggle, COD intact) + separate admin auth (F4 isolated instance/tables/cookies/routes, email+password, bootstrap, `ADMIN_EMAILS` retired as gate) + prepaid lifecycle rail (F7) + admin payment-methods/refund (F10). Linked `DECISIONS.md` ADR-020/ADR-021.
 - 1.2 (2026-10-01): Currencies fully dynamic — dropped any code/env-specific currency (no `BASE_CURRENCY`; base resolved via `is_base`). Email via provider port (`EMAIL_PROVIDER`, Mailgun sandbox now, Resend-ready). Linked `DECISIONS.md`.
 - 1.1 (2026-10-01): Auth.js → Better Auth library (drizzleAdapter pg, `nextCookies`, `[...auth]` route, `BETTER_AUTH_*` env). Drizzle `neon-http` confirmed as sole DB client. Linked `DECISIONS.md`.
 - 1.0: initial PRD.
