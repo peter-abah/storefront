@@ -1,0 +1,12 @@
+# deps
+node_modules/
+# next
+.next/
+out/
+# env (local secrets never committed; .env.example is the template)
+.env.local
+.env*.local
+# drizzle (migrations + meta are committed; same chain for Docker-dev and Neon-prod)
+# logs
+*.log
+.DS_Store
