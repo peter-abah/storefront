@@ -4,6 +4,7 @@ import { MotionConfig } from "motion/react";
 import "./globals.css";
 import { SmoothScrollProvider } from "@/components/providers/smooth-scroll-provider";
 import { SiteChrome } from "@/components/storefront/SiteChrome";
+import { supportEmailAsync } from "@/lib/admin-emails";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -55,17 +56,18 @@ export const viewport = {
   themeColor: "#F7F3EC",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supportEmail = await supportEmailAsync();
   return (
     <html lang="en" className={`${fraunces.variable} ${grotesk.variable}`}>
       <body className="bg-paper text-ink font-sans antialiased">
         <MotionConfig reducedMotion="user">
           <SmoothScrollProvider>
-            <SiteChrome>{children}</SiteChrome>
+            <SiteChrome supportEmail={supportEmail}>{children}</SiteChrome>
           </SmoothScrollProvider>
         </MotionConfig>
       </body>

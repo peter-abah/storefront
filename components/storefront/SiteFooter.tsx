@@ -7,8 +7,11 @@ import { MotifMark } from "./Editorial";
  * motto rule, then the Phase 1 trust columns (Shop / Help / Contact).
  * Identity values remain Phase 0 DRAFTs (docs/BUSINESS_FACTS.md).
  */
-export function SiteFooter() {
-  const email = supportEmail();
+export function SiteFooter({ email: emailProp }: { email?: string }) {
+  // Sync by necessity: rendered inside client SiteChrome, so this component
+  // cannot be async. The server layout injects the DB-aware address; the
+  // sync env→DRAFT wrapper is the standalone fallback only.
+  const email = emailProp ?? supportEmail();
 
   return (
     <footer className="border-t border-ink/10 bg-cream/60">

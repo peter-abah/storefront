@@ -10,7 +10,8 @@ import {
 import { requireUser } from "@/lib/auth-session";
 import { getCart } from "@/lib/actions/cart";
 import { CheckoutForm } from "@/components/checkout/CheckoutForm";
-import { CONTACT, supportEmail } from "@/lib/contact";
+import { CONTACT } from "@/lib/contact";
+import { supportEmailAsync } from "@/lib/admin-emails";
 import { getPaymentMethodsSafe } from "@/lib/payments";
 import { paystackPublicKey } from "@/lib/paystack";
 
@@ -74,7 +75,7 @@ export default async function CheckoutPage() {
     boxedCurrencies.find((c) => c.isBase) ?? boxedCurrencies[0]!;
 
   const liveMethods = methodRows.filter((m) => m.enabled);
-  const headline =
+  const email = await supportEmailAsync();  const headline =
     liveMethods.length === 1 && liveMethods[0]!.code === "paystack"
       ? "Pay now"
       : liveMethods.length === 1 && liveMethods[0]!.code === "cod"
@@ -83,19 +84,19 @@ export default async function CheckoutPage() {
 
   return (
     <main className="editorial-grid py-10 md:py-14">
-      <div className="col-span-12">
+      <div className="col-span-12 min-w-0">
         <p className="text-xs tracking-[0.3em] uppercase text-bronze">Checkout</p>
-        <h1 className="font-display mt-2 text-4xl md:text-6xl">{headline}</h1>
-        <p className="mt-3 max-w-prose text-ink-soft">
+        <h1 className="font-display mt-2 min-w-0 text-4xl break-words text-balance md:text-6xl">{headline}</h1>
+        <p className="mt-3 max-w-prose min-w-0 text-ink-soft break-words [overflow-wrap:anywhere]">
           Pay the rider on arrival — they call before delivery. Questions? Write to{" "}
           <a
-            href={`mailto:${supportEmail()}`}
-            className="text-bronze-deep underline underline-offset-4"
+            href={`mailto:${email}`}
+            className="text-bronze-deep underline underline-offset-4 break-all"
           >
-            {supportEmail()}
+            {email}
           </a>{" "}
           ·{" "}
-          <a href={CONTACT.phoneHref} className="text-bronze-deep underline underline-offset-4">
+          <a href={CONTACT.phoneHref} className="text-bronze-deep underline underline-offset-4 whitespace-nowrap">
             {CONTACT.phoneDisplay}
           </a>{" "}
           ·{" "}
@@ -103,7 +104,7 @@ export default async function CheckoutPage() {
             href={CONTACT.whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-bronze-deep underline underline-offset-4"
+            className="text-bronze-deep underline underline-offset-4 break-words"
           >
             {CONTACT.whatsappDisplay}
           </a>{" "}
@@ -114,7 +115,7 @@ export default async function CheckoutPage() {
           .
         </p>
       </div>
-      <div className="col-span-12">
+      <div className="col-span-12 min-w-0">
         <CheckoutForm
           email={sp.user.email}
           name={sp.user.name ?? ""}

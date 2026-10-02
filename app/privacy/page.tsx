@@ -1,14 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CONTACT, supportEmail } from "@/lib/contact";
+import { CONTACT } from "@/lib/contact";
+import { supportEmailAsync } from "@/lib/admin-emails";
 
 export const metadata: Metadata = {
   title: "Privacy — Maison",
   description: "What Maison keeps, how long, and how to request deletion (NDPR).",
 };
 
-export default function PrivacyPage() {
-  const email = supportEmail();
+export default async function PrivacyPage() {
+  const email = await supportEmailAsync();
   return (
     <main className="editorial-grid py-10 md:py-14">
       <div className="col-span-12 lg:col-span-8 lg:col-start-3">

@@ -1,14 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CONTACT, supportEmail } from "@/lib/contact";
+import { CONTACT } from "@/lib/contact";
+import { supportEmailAsync } from "@/lib/admin-emails";
 
 export const metadata: Metadata = {
   title: "Terms — Maison",
   description: "Terms for cash-on-delivery orders from the Maison shop.",
 };
 
-export default function TermsPage() {
-  const email = supportEmail();
+export default async function TermsPage() {
+  const email = await supportEmailAsync();
   return (
     <main className="editorial-grid py-10 md:py-14">
       <div className="col-span-12 lg:col-span-8 lg:col-start-3">

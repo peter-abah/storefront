@@ -6,6 +6,7 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { cartItems, carts, emailLog, orderItems, orders, paymentMethods, products } from "@/lib/db/schema";
+import { firstAdminDbEmail } from "@/lib/admin-emails";
 
 export type PaymentMethodRow = { code: string; label: string; enabled: boolean };
 
@@ -40,12 +41,12 @@ export async function isMethodEnabled(code: string): Promise<boolean> {
   return row.enabled;
 }
 
-function firstAdminEmail(): string | null {
-  const first = (process.env.ADMIN_EMAILS ?? "")
+async function firstAdminEmail(): Promise<string | null> {
+  const first = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)[0];
-  return first ?? null;
+  return first || (await firstAdminDbEmail()) || null;
 }
 
 function fireNotify(orderId: string): void {
@@ -74,7 +75,7 @@ function fireNotify(orderId: string): void {
 
 /** Queue the 3 notify rows idempotently (webhook + verify can race). */
 export async function queueOrderEmails(orderId: string, buyerEmail: string): Promise<void> {
-  const adminEmail = firstAdminEmail();
+  const adminEmail = await firstAdminEmail();
   const ownerEmail = process.env.OWNER_EMAIL?.trim() || adminEmail || buyerEmail;
   await db
     .insert(emailLog)

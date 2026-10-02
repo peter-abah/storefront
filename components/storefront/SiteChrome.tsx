@@ -11,7 +11,13 @@ import { CartMerge } from "@/components/cart/CartMerge";
  * and CartDrawer on /admin routes so the admin shell stays minimal and
  * free of shopper navigation. CartMerge is also shopper-only.
  */
-export function SiteChrome({ children }: { children: React.ReactNode }) {
+export function SiteChrome({
+  children,
+  supportEmail,
+}: {
+  children: React.ReactNode;
+  supportEmail?: string;
+}) {
   const pathname = usePathname();
   const isAdmin = (pathname ?? "").startsWith("/admin");
   if (isAdmin) return <>{children}</>;
@@ -19,7 +25,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
     <>
       <SiteHeader />
       {children}
-      <SiteFooter />
+      <SiteFooter email={supportEmail} />
       <CartDrawer />
       <CartMerge />
     </>

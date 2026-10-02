@@ -45,7 +45,12 @@ export const CONTACT = {
   domain: DRAFT.domain,
 } as const;
 
-/** Support email: OWNER_EMAIL first, then ADMIN_EMAILS[0], then DRAFT. Never empty in dev. */
+/**
+ * Sync support email: OWNER_EMAIL first, then ADMIN_EMAILS[0], then DRAFT.
+ * Never empty in dev.
+ * @deprecated Prefer supportEmailAsync() (adds the admin_users DB step).
+ * Kept for render paths that cannot be async (client-tree components).
+ */
 export function supportEmail(): string {
   return (
     process.env.OWNER_EMAIL?.trim() ||
@@ -55,6 +60,14 @@ export function supportEmail(): string {
     DRAFT.supportEmail
   );
 }
+
+/**
+ * DB-aware support email lives in lib/admin-emails.ts (server-only).
+ * It is defined there — not here — so this module never pulls DB/node
+ * built-ins into client bundles (SiteFooter imports this module from the
+ * client SiteChrome tree).
+ */
+export const DRAFT_SUPPORT_EMAIL: string = DRAFT.supportEmail;
 
 /** App URL for absolute links (emails, metadata). Localhost fallback is dev-only. */
 export function appUrl(): string {

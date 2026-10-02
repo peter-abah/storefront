@@ -20,7 +20,8 @@ import {
   shippingZones,
 } from "@/lib/db/schema";
 import { formatDisplay, toDisplay } from "@/lib/money";
-import { CONTACT, appUrl as getAppUrl, supportEmail } from "@/lib/contact";
+import { CONTACT, appUrl as getAppUrl } from "@/lib/contact";
+import { firstAdminDbEmail, supportEmailAsync } from "@/lib/admin-emails";
 import { getEmailProvider, providerKey } from "@/lib/email";
 import { EmailSendError } from "@/lib/email/provider";
 import {
@@ -90,17 +91,17 @@ function withJitter(ms: number): number {
   return Math.round(ms * (0.8 + Math.random() * 0.4));
 }
 
-function firstAdminEmail(): string | null {
+async function firstAdminEmail(): Promise<string | null> {
   const first = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)[0];
-  return first || null;
+  return first || (await firstAdminDbEmail()) || null;
 }
 
-function ownerEmailOf(fallback: string): string {
+async function ownerEmailOf(fallback: string): Promise<string> {
   return (
-    process.env.OWNER_EMAIL?.trim() || firstAdminEmail() || fallback
+    process.env.OWNER_EMAIL?.trim() || (await firstAdminEmail()) || fallback
   );
 }
 
@@ -112,12 +113,12 @@ function isSandboxMailgun(): boolean {
 }
 
 /** Fixed recipients per kind, with the sandbox redirect applied. */
-function resolveRecipients(orderEmail: string): {
+async function resolveRecipients(orderEmail: string): Promise<{
   map: Record<EmailKind, string>;
   sandboxRedirect: boolean;
-} {
-  const owner = ownerEmailOf(orderEmail);
-  const admin = firstAdminEmail() || owner;
+}> {
+  const owner = await ownerEmailOf(orderEmail);
+  const admin = (await firstAdminEmail()) || owner;
   const natural: Record<EmailKind, string> = {
     buyer_confirm: orderEmail,
     owner_fulfill: owner,
@@ -221,7 +222,7 @@ async function buildView(
 
   // Localhost fallback is dev-only (lib/contact.ts); prod sets APP_URL or NEXT_PUBLIC_APP_URL.
   const baseUrl = getAppUrl();
-  const support = ownerEmailOf(order.email);
+  const support = await ownerEmailOf(order.email);
   // Payment columns ship with migration 0002; read defensively so a stale
   // DB still sends the COD copy instead of crashing the worker.
   const paymentMethod =
@@ -348,7 +349,7 @@ async function sendKind(
   const provider = getEmailProvider();
   let lastError = "unknown error";
   // Reply-to = support mailbox so buyer replies reach the shop, not the sandbox sender.
-  const replyTo = toEmail.includes("@") ? supportEmail() : undefined;
+  const replyTo = toEmail.includes("@") ? await supportEmailAsync() : undefined;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const res = await provider.send({
@@ -425,7 +426,7 @@ export async function notifyOrder(
     throw new NotifyError(404, "NOT_FOUND", "Order not found.");
   }
 
-  const { map: recipients } = resolveRecipients(order.email);
+  const { map: recipients } = await resolveRecipients(order.email);
   const view = await buildView(order);
   const providerName = getEmailProvider().name;
 

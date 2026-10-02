@@ -28,6 +28,7 @@ import {
   verifyPaystackTransaction,
 } from "@/lib/paystack";
 import { finalizePaidOrder, isMethodEnabled } from "@/lib/payments";
+import { firstAdminDbEmail } from "@/lib/admin-emails";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -39,12 +40,12 @@ function genOrderNumber(): string {
   return `MS-${s}`;
 }
 
-function firstAdminEmail(): string | null {
-  const first = (process.env.ADMIN_EMAILS ?? "")
+async function firstAdminEmail(): Promise<string | null> {
+  const first = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean)[0];
-  return first ?? null;
+  return first || (await firstAdminDbEmail()) || null;
 }
 
 export type CheckoutPriceSnapshot = {
@@ -374,7 +375,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
   );
 
   // Wave 5 queue: 3 pending rows; the notify worker sends them.
-  const adminEmail = firstAdminEmail();
+  const adminEmail = await firstAdminEmail();
   const ownerEmail = process.env.OWNER_EMAIL?.trim() || adminEmail || sp.user.email;
   await db.insert(emailLog).values([
     { orderId, kind: "buyer_confirm", toEmail: sp.user.email },
