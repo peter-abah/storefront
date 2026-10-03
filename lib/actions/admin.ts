@@ -278,6 +278,81 @@ export async function adjustStock(
 
 export type AdminOrderRow = typeof orders.$inferSelect & { itemCount: number };
 
+// Admin-gated order detail — same read shape as the shopper
+// getOrderDetail, but behind requireAdmin() with NO owner check.
+// components/admin/* must use this, never the shopper action in
+// lib/actions/orders.ts (isolated sessions: admin.session_token vs
+// better-auth.session_token — see ADR-021).
+export type AdminOrderDetailDTO = {
+  order: typeof orders.$inferSelect;
+  items: {
+    productId: string;
+    slug: string;
+    name: string;
+    image: string | null;
+    qty: number;
+    unitBaseCents: number;
+  }[];
+  zoneName: string | null;
+  currency: typeof currencies.$inferSelect;
+};
+
+export async function getOrderDetailAdmin(
+  id: unknown,
+): Promise<ActionResult<AdminOrderDetailDTO>> {
+  const sp = await requireAdmin();
+  if (!sp) return forbidden();
+  const parsed = z.string().uuid().safeParse(id);
+  if (!parsed.success) {
+    return { ok: false, code: "INVALID_INPUT", message: "Invalid order." };
+  }
+  const order = (
+    await db.select().from(orders).where(eq(orders.id, parsed.data)).limit(1)
+  )[0];
+  if (!order) {
+    return { ok: false, code: "NOT_FOUND", message: "Order not found." };
+  }
+
+  const lines = await db
+    .select()
+    .from(orderItems)
+    .where(eq(orderItems.orderId, order.id));
+
+  const items: AdminOrderDetailDTO["items"] = [];
+  for (const l of lines) {
+    const p = (
+      await db.select().from(products).where(eq(products.id, l.productId)).limit(1)
+    )[0];
+    items.push({
+      productId: l.productId,
+      slug: p?.slug ?? "",
+      name: p?.name ?? "Removed product",
+      image: p?.images[0]?.url ?? null,
+      qty: l.qty,
+      unitBaseCents: l.unitBaseCents,
+    });
+  }
+
+  const zone = (
+    await db
+      .select()
+      .from(shippingZones)
+      .where(eq(shippingZones.id, order.address.zoneId))
+      .limit(1)
+  )[0];
+  const currency = (
+    await db.select().from(currencies).where(eq(currencies.code, order.currencyCode)).limit(1)
+  )[0];
+  if (!currency) {
+    return { ok: false, code: "NOT_FOUND", message: "Order currency is no longer configured." };
+  }
+
+  return {
+    ok: true,
+    data: { order, items, zoneName: zone?.name ?? null, currency },
+  };
+}
+
 export async function listOrdersAdmin(
   input?: unknown,
 ): Promise<ActionResult<{ items: AdminOrderRow[]; total: number; page: number; perPage: number }>> {

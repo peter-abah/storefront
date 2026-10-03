@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getOrderDetail, type OrderDetailDTO } from "@/lib/actions/orders";
+// Admin-gated detail read (admin.session_token). Never import the shopper
+// getOrderDetail from lib/actions/orders here — isolated sessions (ADR-021).
+import { getOrderDetailAdmin, type AdminOrderDetailDTO } from "@/lib/actions/admin";
 import { transitionOrder, type AdminOrderRow } from "@/lib/actions/admin";
 import { canTransition, isPrepaid, ORDER_STATUSES, type OrderStatus } from "@/lib/order-machine";
 import { StatusPill } from "@/components/orders/StatusPill";
@@ -14,14 +16,15 @@ type Props = {
   page: number;
   perPage: number;
   status: string;
+  initialSelectedId?: string | null;
 };
 
 const FILTERS = ["all", ...ORDER_STATUSES];
 
-export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
+export function OrdersBoard({ orders, total, page, perPage, status, initialSelectedId }: Props) {
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<OrderDetailDTO | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
+  const [detail, setDetail] = useState<AdminOrderDetailDTO | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -32,8 +35,24 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
   const drawerCloseRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
-  const closeDetail = useCallback(() => setSelectedId(null), []);
+  const closeDetail = useCallback(() => {
+    setSelectedId(null);
+    // Drop ?order= so a refresh doesn't reopen the drawer. Preserve
+    // status/page filters; use replace to avoid history spam.
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("order")) {
+      params.delete("order");
+      const qs = params.toString();
+      router.replace(`/admin/orders${qs ? `?${qs}` : ""}`);
+    }
+  }, [router]);
   const { stop: stopScroll, start: startScroll } = useSmoothScroll();
+
+  // Email deep-links (/admin/orders?order=<uuid>) arrive as
+  // initialSelectedId — sync into state on navigation.
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
 
   // Escape close + focus trap + initial focus + focus restore for the drawer.
   // Pauses Lenis so the drawer (data-lenis-prevent) scrolls natively (mirrors CartDrawer).
@@ -87,7 +106,7 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
     let live = true;
     setDetailLoading(true);
     setDetailError(null);
-    getOrderDetail(selectedId).then((res) => {
+    getOrderDetailAdmin(selectedId).then((res) => {
       if (!live) return;
       if (!res.ok) setDetailError(res.message);
       else setDetail(res.data);
@@ -102,6 +121,10 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
     const params = new URLSearchParams();
     if (nextStatus !== "all") params.set("status", nextStatus);
     if (nextPage > 1) params.set("page", String(nextPage));
+    // Keep ?order= in sync with the open drawer so filter/page changes
+    // don't diverge URL from state (deep-link stays shareable; manual
+    // opens become shareable on next navigation).
+    if (selectedId) params.set("order", selectedId);
     const qs = params.toString();
     router.push(`/admin/orders${qs ? `?${qs}` : ""}`);
   }
@@ -117,7 +140,7 @@ export function OrdersBoard({ orders, total, page, perPage, status }: Props) {
         return;
       }
       setPendingCancel(null);
-      const fresh = await getOrderDetail(selectedId);
+      const fresh = await getOrderDetailAdmin(selectedId);
       if (fresh.ok) setDetail(fresh.data);
       router.refresh();
     } finally {

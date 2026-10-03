@@ -18,6 +18,14 @@ export default async function AdminOrdersPage({
   const status = statusRaw || "all";
   const pageRaw = typeof sp.page === "string" ? sp.page : Array.isArray(sp.page) ? sp.page[0] : "1";
   const page = Math.max(1, Number(pageRaw) || 1);
+  // Email deep-link (?order=<uuid> from confirmUrl/adminUrl). UUID-shaped
+  // only — full validation happens in getOrderDetailAdmin; anything else
+  // is ignored so the list still renders.
+  const orderRaw = typeof sp.order === "string" ? sp.order : Array.isArray(sp.order) ? sp.order[0] : undefined;
+  const initialSelectedId =
+    orderRaw && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderRaw)
+      ? orderRaw
+      : null;
 
   const res = await listOrdersAdmin({ status, page });
   if (!res.ok) {
@@ -47,6 +55,7 @@ export default async function AdminOrdersPage({
           page={res.data.page}
           perPage={res.data.perPage}
           status={status}
+          initialSelectedId={initialSelectedId}
         />
       </div>
     </main>

@@ -40,7 +40,7 @@ export const profiles = pgTable("profiles", {
   email: text("email").notNull().unique(),
   name: text("name"),
   image: text("image"),
-  role: text("role").default("customer").notNull(), // customer | admin
+  role: text("role").default("customer").notNull(), // customer-only since ADR-021 (admin lives in admin_users); legacy 'admin' value never written
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

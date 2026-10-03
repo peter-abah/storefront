@@ -35,7 +35,7 @@
   - `app/api/auth/[...all]/route.ts`: `toNextJsHandler(auth)` (default basePath; `[...all]` preferred over `[...auth]` to avoid redirect_uri_mismatch)
   - Schema via `npx @better-auth/cli generate` then `drizzle-kit migrate`
   - Callback: `/api/auth/callback/google` — must be registered in Google Cloud Console
-- **Roles:** keep `profiles.role` + `ADMIN_EMAILS` env allowlist auto-promote on sign-in. No `better-auth/admin` plugin in V1.
+- **Roles:** keep `profiles.role` + `ADMIN_EMAILS` env allowlist auto-promote on sign-in. No `better-auth/admin` plugin in V1. *(Superseded by ADR-021: `ADMIN_EMAILS` retired as access gate — `getSessionProfile` always upserts `customer`, admin lives on the isolated instance. Kept here as history.)*
 - **Consequence:** Google-login required for checkout/admin. Env uses `BETTER_AUTH_SECRET/URL` (not Auth.js names).
 
 ## ADR-005 — Cloudinary Free for images

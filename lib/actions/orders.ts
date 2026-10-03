@@ -81,6 +81,9 @@ export type OrderDetailDTO = {
 export async function getOrderDetail(
   id: unknown,
 ): Promise<ActionResult<OrderDetailDTO>> {
+  // SHOPPER-ONLY (better-auth.session_token + owner check). Admin surfaces
+  // must use getOrderDetailAdmin in lib/actions/admin.ts — never import this
+  // from components/admin/* (isolated sessions, ADR-021).
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) {
     return { ok: false, code: "INVALID_INPUT", message: "Invalid order." };
