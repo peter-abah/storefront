@@ -1,51 +1,21 @@
 {
-  "name": "maison-editorial-shop",
-  "version": "0.1.0",
+  "name": "maison-monorepo",
   "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:check": "drizzle-kit check",
-    "db:push": "drizzle-kit push",
-    "db:setup": "drizzle-kit migrate && tsx scripts/seed.ts",
-    "db:status": "tsx scripts/db-status.ts",
-    "db:migrate:local": "DATABASE_URL=postgresql://maison:maison@localhost:5432/maison drizzle-kit migrate"
-  },
-  "dependencies": {
-    "@better-auth/drizzle-adapter": "1.7.7",
-    "@neondatabase/serverless": "1.1.0",
-    "better-auth": "1.7.7",
-    "drizzle-orm": "0.45.2",
-    "lenis": "1.3.26",
-    "motion": "13.2.0",
-    "next": "15.5.25",
-    "postgres": "^3.4.9",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "zod": "^4.6.5"
-  },
-  "devDependencies": {
-    "@eslint/eslintrc": "^3.3.1",
-    "@tailwindcss/postcss": "4.3.3",
-    "@types/node": "^20.19.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "dotenv": "^18.0.5",
-    "drizzle-kit": "0.31.10",
-    "eslint": "^9.32.0",
-    "eslint-config-next": "15.5.25",
-    "postcss": "^8.5.3",
-    "tailwindcss": "4.3.3",
-    "tsx": "^4.23.15",
-    "typescript": "5.9.2"
-  },
+  "packageManager": "pnpm@11.4.0",
   "engines": {
     "node": ">=22.12"
   },
-  "packageManager": "pnpm@11.4.0"
+  "scripts": {
+    "dev:web": "pnpm --filter @maison/web dev",
+    "build:web": "pnpm --filter @maison/web build",
+    "start:web": "pnpm --filter @maison/web start",
+    "lint": "pnpm --filter @maison/web lint",
+    "db:generate": "pnpm --filter @maison/web db:generate",
+    "db:migrate": "pnpm --filter @maison/web db:migrate",
+    "db:check": "pnpm --filter @maison/web db:check",
+    "db:push": "pnpm --filter @maison/web db:push",
+    "db:setup": "pnpm --filter @maison/web db:setup",
+    "db:status": "pnpm --filter @maison/web db:status",
+    "db:migrate:local": "pnpm --filter @maison/web db:migrate:local"
+  }
 }

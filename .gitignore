@@ -12,3 +12,5 @@ tsconfig.tsbuildinfo
 # logs
 *.log
 .DS_Store
+# local orchestration state
+docs/orchestration/

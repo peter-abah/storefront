@@ -6,8 +6,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Worktree sits under /home/peter/code/projects which holds an unrelated
-  // package-lock.json — pin tracing root here to silence the warning.
+  // Pin file tracing to this workspace package so Next.js does not walk up
+  // into the monorepo root (or unrelated parent dirs) when collecting files.
   outputFileTracingRoot: __dirname,
   images: {
     // Curated Unsplash stock (seed-mapped per category/room) + Cloudinary

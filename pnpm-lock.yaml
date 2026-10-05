@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  apps/web:
     dependencies:
       '@better-auth/drizzle-adapter':
         specifier: 1.7.7
