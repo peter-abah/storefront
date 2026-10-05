@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
+import { bearer } from "better-auth/plugins";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { expo } from "@better-auth/expo";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "./db";
 
@@ -10,6 +12,12 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   database: drizzleAdapter(db, { provider: "pg" }),
+  trustedOrigins: [
+    "maison://",
+    ...(process.env.NODE_ENV !== "production"
+      ? ["exp://", "exp://**", "exp://192.168.*.*:*/**"]
+      : []),
+  ],
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
@@ -17,5 +25,5 @@ export const auth = betterAuth({
     },
   },
   // nextCookies() MUST stay last so Server Actions see the session.
-  plugins: [nextCookies()],
+  plugins: [expo(), bearer(), nextCookies()],
 });
