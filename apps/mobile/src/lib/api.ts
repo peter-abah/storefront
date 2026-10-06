@@ -5,11 +5,19 @@ import type {
   CartMergeResultDTO,
   CartMutationResultDTO,
   CartRemoveResultDTO,
+  CheckoutInput,
+  CheckoutPriceSnapshot,
   FilterMetaDTO,
   GuestCartProductDTO,
   MobileBootstrapDTO,
   MobileProfileDTO,
+  MyOrderDTO,
+  OrderCancelledDTO,
+  OrderCreatedDTO,
+  OrderDetailDTO,
   PaginatedProductsDTO,
+  PaystackInitDTO,
+  PaystackVerifyInput,
   ProductDetailDTO,
   ProductSort,
   RelatedProductDTO,
@@ -19,13 +27,45 @@ import { authClient } from "./auth-client";
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
+  /**
+   * Failure extras preserved from the wire `{ok:false,...}` body — notably
+   * PRICE_CHANGED's `old`/`new` snapshots, which must never be dropped.
+   */
+  readonly details: Record<string, unknown>;
 
-  constructor(code: string, message: string, status: number) {
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    details: Record<string, unknown> = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    this.details = details;
   }
+}
+
+/** PRICE_CHANGED failures carry the shopper-old and server-new snapshots. */
+export function isPriceChangedError(
+  error: unknown,
+): error is ApiError & {
+  details: { old: CheckoutPriceSnapshot; new: CheckoutPriceSnapshot };
+} {
+  if (!(error instanceof ApiError) || error.code !== "PRICE_CHANGED") {
+    return false;
+  }
+  const { old, new: next } = error.details as {
+    old?: CheckoutPriceSnapshot;
+    new?: CheckoutPriceSnapshot;
+  };
+  return (
+    typeof old === "object" &&
+    old !== null &&
+    typeof next === "object" &&
+    next !== null
+  );
 }
 
 export type ApiFetchOptions = Omit<RequestInit, "body"> & {
@@ -106,7 +146,18 @@ export async function apiFetch<T>(
 
   if (payload.ok) return payload.data as T;
 
-  throw new ApiError(payload.code, payload.message, response.status);
+  const { ok: _ok, code, message, ...details } = payload as ApiResult<never> & {
+    [key: string]: unknown;
+  };
+  void _ok;
+  if (typeof code !== "string" || typeof message !== "string") {
+    throw new ApiError(
+      "INVALID_RESPONSE",
+      `The API returned an unexpected response (HTTP ${response.status}).`,
+      response.status,
+    );
+  }
+  throw new ApiError(code, message, response.status, details);
 }
 
 function isApiResult(value: unknown): value is ApiResult<unknown> {
@@ -245,4 +296,60 @@ export function getCartProducts(
     method: "POST",
     body: { ids },
   });
+}
+
+/**
+ * POST /checkout/cod — place a cash-on-delivery order. The server re-prices
+ * from the DB; `expected*` is only the reviewed snapshot. A PRICE_CHANGED
+ * failure arrives as an ApiError (409) whose `details` carry old/new —
+ * read them with `isPriceChangedError`.
+ */
+export function createCodOrder(input: CheckoutInput): Promise<OrderCreatedDTO> {
+  return apiFetch<OrderCreatedDTO>("/checkout/cod", {
+    method: "POST",
+    body: input,
+    auth: true,
+  });
+}
+
+/** POST /checkout/paystack/init — create awaiting-payment order + charge data. */
+export function initPaystackOrder(
+  input: CheckoutInput,
+): Promise<PaystackInitDTO> {
+  return apiFetch<PaystackInitDTO>("/checkout/paystack/init", {
+    method: "POST",
+    body: input,
+    auth: true,
+  });
+}
+
+/** POST /checkout/paystack/verify — confirm gateway money (idempotent). */
+export function verifyPaystackOrder(
+  input: PaystackVerifyInput,
+): Promise<OrderCreatedDTO> {
+  return apiFetch<OrderCreatedDTO>("/checkout/paystack/verify", {
+    method: "POST",
+    body: input,
+    auth: true,
+  });
+}
+
+/** GET /orders — authenticated order history, newest first. */
+export function getOrders(): Promise<MyOrderDTO[]> {
+  return apiFetch<MyOrderDTO[]>("/orders", { auth: true });
+}
+
+/** GET /orders/[id] — owner-only detail (404 for missing/foreign ids). */
+export function getOrderDetail(id: string): Promise<OrderDetailDTO> {
+  return apiFetch<OrderDetailDTO>(`/orders/${encodeURIComponent(id)}`, {
+    auth: true,
+  });
+}
+
+/** POST /orders/[id]/cancel — buyer cancel inside the 12h window. */
+export function cancelOrder(id: string): Promise<OrderCancelledDTO> {
+  return apiFetch<OrderCancelledDTO>(
+    `/orders/${encodeURIComponent(id)}/cancel`,
+    { method: "POST", auth: true },
+  );
 }
