@@ -1,22 +1,27 @@
+import type { ProductCardDTO } from "@maison/shared";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { router } from "expo-router";
+import { useCallback } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { ProductRail } from "@/components/product-rail";
 import { Screen } from "@/components/screen";
-import { apiHost, bootstrap } from "@/lib/api";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { apiHost, bootstrap, listProducts } from "@/lib/api";
 import { palette, radius, spacing } from "@/lib/theme";
 
 export default function HomeScreen() {
-  const { data, isPending, isError, error, refetch, isRefetching } = useQuery({
-    queryKey: ["bootstrap"],
-    queryFn: bootstrap,
+  const bootstrapQuery = useQuery({ queryKey: ["bootstrap"], queryFn: bootstrap });
+  const arrivalsQuery = useQuery({
+    queryKey: ["products", { sort: "newest", page: 1 }],
+    queryFn: () => listProducts({ sort: "newest", page: 1 }),
   });
+
+  const openProduct = useCallback((product: ProductCardDTO) => {
+    router.push({ pathname: "/product/[slug]", params: { slug: product.slug } });
+  }, []);
+
+  const arrivals = arrivalsQuery.data?.items.slice(0, 8) ?? [];
 
   return (
     <Screen title="Maison" subtitle="Furniture and objects for the home">
@@ -24,61 +29,74 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>API status</Text>
+        <View style={styles.block}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>API status</Text>
 
-          {isPending ? (
-            <View style={styles.row}>
-              <ActivityIndicator color={palette.bronze} />
-              <Text style={styles.mutedText}>Connecting to the shop…</Text>
-            </View>
-          ) : null}
+            {bootstrapQuery.isPending ? (
+              <LoadingState label="Connecting to the shop…" />
+            ) : null}
 
-          {isError ? (
-            <View style={styles.stack}>
-              <Text style={styles.errorTitle}>Could not load the shop</Text>
-              <Text style={styles.mutedText}>
-                {error instanceof Error
-                  ? error.message
-                  : "Something went wrong. Please try again."}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                disabled={isRefetching}
-                onPress={() => refetch()}
-                style={({ pressed }) => [
-                  styles.button,
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text style={styles.buttonText}>
-                  {isRefetching ? "Retrying…" : "Retry"}
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
+            {bootstrapQuery.isError ? (
+              <ErrorState
+                message={
+                  bootstrapQuery.error instanceof Error
+                    ? bootstrapQuery.error.message
+                    : undefined
+                }
+                onRetry={() => bootstrapQuery.refetch()}
+                retrying={bootstrapQuery.isRefetching}
+                title="Could not load the shop"
+              />
+            ) : null}
 
-          {data ? (
-            <View style={styles.stack}>
-              <StatusRow
-                label="Currencies"
-                value={String(data.currencies.length)}
-              />
-              <StatusRow
-                label="Delivery zones"
-                value={String(data.checkout.zones.length)}
-              />
-              <StatusRow
-                label="Contact email"
-                value={data.contact.email || "Not set"}
-              />
-              <StatusRow
-                label="Contact phone"
-                value={data.contact.phone || "Not set"}
-              />
-              <StatusRow label="API host" value={apiHost()} />
-            </View>
-          ) : null}
+            {bootstrapQuery.data ? (
+              <View style={styles.stack}>
+                <StatusRow
+                  label="Currencies"
+                  value={String(bootstrapQuery.data.currencies.length)}
+                />
+                <StatusRow
+                  label="Delivery zones"
+                  value={String(bootstrapQuery.data.checkout.zones.length)}
+                />
+                <StatusRow
+                  label="Contact email"
+                  value={bootstrapQuery.data.contact.email || "Not set"}
+                />
+                <StatusRow
+                  label="Contact phone"
+                  value={bootstrapQuery.data.contact.phone || "Not set"}
+                />
+                <StatusRow label="API host" value={apiHost()} />
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>New arrivals</Text>
+          {arrivalsQuery.isPending ? (
+            <LoadingState label="Loading arrivals…" />
+          ) : arrivalsQuery.isError ? (
+            <ErrorState
+              message={
+                arrivalsQuery.error instanceof Error
+                  ? arrivalsQuery.error.message
+                  : undefined
+              }
+              onRetry={() => arrivalsQuery.refetch()}
+              retrying={arrivalsQuery.isRefetching}
+              title="Could not load new arrivals"
+            />
+          ) : arrivals.length === 0 ? (
+            <EmptyState
+              message="New pieces will appear here as they land."
+              title="Nothing new yet"
+            />
+          ) : (
+            <ProductRail onPressProduct={openProduct} products={arrivals} />
+          )}
         </View>
       </ScrollView>
     </Screen>
@@ -89,7 +107,7 @@ function StatusRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.statusRow}>
       <Text style={styles.statusLabel}>{label}</Text>
-      <Text style={styles.statusValue} numberOfLines={1}>
+      <Text numberOfLines={1} style={styles.statusValue}>
         {value}
       </Text>
     </View>
@@ -98,8 +116,11 @@ function StatusRow({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   content: {
-    padding: spacing.lg,
+    paddingBottom: spacing.xl,
     paddingTop: spacing.sm,
+  },
+  block: {
+    paddingHorizontal: spacing.lg,
   },
   card: {
     backgroundColor: palette.surface,
@@ -115,11 +136,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   stack: {
-    gap: spacing.sm,
-  },
-  row: {
-    alignItems: "center",
-    flexDirection: "row",
     gap: spacing.sm,
   },
   statusRow: {
@@ -141,31 +157,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: spacing.md,
   },
-  mutedText: {
-    color: palette.muted,
-    fontSize: 14,
-    lineHeight: 20,
+  section: {
+    marginTop: spacing.xl,
   },
-  errorTitle: {
-    color: palette.danger,
-    fontSize: 15,
+  sectionTitle: {
+    color: palette.ink,
+    fontSize: 20,
     fontWeight: "700",
-  },
-  button: {
-    alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: palette.bronze,
-    borderRadius: radius.sm,
-    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  buttonPressed: {
-    opacity: 0.85,
-  },
-  buttonText: {
-    color: palette.onBronze,
-    fontSize: 14,
-    fontWeight: "700",
   },
 });

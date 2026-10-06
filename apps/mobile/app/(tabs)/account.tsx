@@ -10,11 +10,21 @@ import {
 } from "react-native";
 
 import { Screen } from "@/components/screen";
+import { ErrorState, LoadingState } from "@/components/states";
+import { useCurrency } from "@/lib/currency";
 import { palette, radius, spacing } from "@/lib/theme";
 import { signInWithGoogle, signOut, useSession } from "@/lib/session";
 
 export default function AccountScreen() {
   const { data: session, isPending, error, refetch } = useSession();
+  const {
+    currencies,
+    currency,
+    setCurrency,
+    isPending: currenciesPending,
+    error: currenciesError,
+    refetch: refetchCurrencies,
+  } = useCurrency();
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -139,6 +149,55 @@ export default function AccountScreen() {
             <Text style={styles.errorText}>{actionError}</Text>
           ) : null}
         </View>
+
+        <View style={[styles.card, styles.currencyCard]}>
+          <Text style={styles.cardTitle}>Currency</Text>
+          <Text style={styles.mutedText}>
+            Prices convert at today&rsquo;s rate and freeze when you order.
+          </Text>
+
+          {currenciesPending ? (
+            <LoadingState label="Loading currencies…" />
+          ) : null}
+
+          {currenciesError && currencies.length === 0 ? (
+            <ErrorState
+              message={currenciesError.message}
+              onRetry={() => refetchCurrencies()}
+              title="Currencies unavailable"
+            />
+          ) : null}
+
+          {currencies.length > 0 ? (
+            <View style={styles.chipRow}>
+              {currencies.map((option) => {
+                const selected = option.code === currency?.code;
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    key={option.code}
+                    onPress={() => setCurrency(option.code)}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      selected && styles.chipSelected,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selected && styles.chipTextSelected,
+                      ]}
+                    >
+                      {option.symbol} {option.code}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -155,6 +214,35 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     padding: spacing.lg,
+  },
+  currencyCard: {
+    marginTop: spacing.lg,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  chip: {
+    backgroundColor: palette.paper,
+    borderColor: palette.line,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+  },
+  chipSelected: {
+    backgroundColor: palette.bronze,
+    borderColor: palette.bronze,
+  },
+  chipText: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  chipTextSelected: {
+    color: palette.onBronze,
   },
   cardTitle: {
     color: palette.ink,
