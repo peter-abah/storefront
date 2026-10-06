@@ -1,6 +1,12 @@
 import type {
   ApiResult,
+  CartDTO,
+  CartLineInput,
+  CartMergeResultDTO,
+  CartMutationResultDTO,
+  CartRemoveResultDTO,
   FilterMetaDTO,
+  GuestCartProductDTO,
   MobileBootstrapDTO,
   MobileProfileDTO,
   PaginatedProductsDTO,
@@ -52,8 +58,15 @@ export async function apiFetch<T>(
   if (body !== undefined) requestHeaders.set("Content-Type", "application/json");
 
   if (auth) {
-    const cookie = await authClient.getCookie();
-    if (cookie) requestHeaders.set("Cookie", cookie);
+    // An empty or unreadable cookie store must not crash the request: it
+    // simply goes out unauthenticated and the API answers UNAUTHENTICATED,
+    // which surfaces as an ApiError distinct from NETWORK_ERROR.
+    try {
+      const cookie = await authClient.getCookie();
+      if (cookie) requestHeaders.set("Cookie", cookie);
+    } catch {
+      // fall through without a Cookie header
+    }
   }
 
   let response: Response;
@@ -171,4 +184,65 @@ export function getProduct(slug: string): Promise<ProductDetailResponse> {
 
 export function getFilters(): Promise<FilterMetaDTO> {
   return apiFetch<FilterMetaDTO>("/filters");
+}
+
+/** GET /cart — authenticated cart with live stock clamps. */
+export function getCart(): Promise<CartDTO> {
+  return apiFetch<CartDTO>("/cart", { auth: true });
+}
+
+/** POST /cart/items — add one line (qty 1–99, server clamps to stock). */
+export function addCartItem(
+  input: CartLineInput,
+): Promise<CartMutationResultDTO> {
+  return apiFetch<CartMutationResultDTO>("/cart/items", {
+    method: "POST",
+    body: input,
+    auth: true,
+  });
+}
+
+/** PATCH /cart/items/[productId] — set qty (1–99). */
+export function updateCartItem(
+  productId: string,
+  qty: number,
+): Promise<CartMutationResultDTO> {
+  return apiFetch<CartMutationResultDTO>(
+    `/cart/items/${encodeURIComponent(productId)}`,
+    { method: "PATCH", body: { qty }, auth: true },
+  );
+}
+
+/** DELETE /cart/items/[productId] — remove one line. */
+export function removeCartItem(
+  productId: string,
+): Promise<CartRemoveResultDTO> {
+  return apiFetch<CartRemoveResultDTO>(
+    `/cart/items/${encodeURIComponent(productId)}`,
+    { method: "DELETE", auth: true },
+  );
+}
+
+/** POST /cart/merge — sum guest lines into the DB cart (wire body `{lines}`). */
+export function mergeCart(
+  lines: CartLineInput[],
+): Promise<CartMergeResultDTO> {
+  return apiFetch<CartMergeResultDTO>("/cart/merge", {
+    method: "POST",
+    body: { lines },
+    auth: true,
+  });
+}
+
+/**
+ * POST /cart/products — public (no auth) live snapshots for guest-cart
+ * display. Max 50 ids per call; callers chunk larger guest carts.
+ */
+export function getCartProducts(
+  ids: string[],
+): Promise<GuestCartProductDTO[]> {
+  return apiFetch<GuestCartProductDTO[]>("/cart/products", {
+    method: "POST",
+    body: { ids },
+  });
 }

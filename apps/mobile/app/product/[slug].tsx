@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AddToCart } from "@/components/add-to-cart";
 import { Money } from "@/components/money";
 import { ProductGallery } from "@/components/product-gallery";
 import { ProductRail } from "@/components/product-rail";
@@ -124,6 +125,11 @@ export default function ProductDetailScreen() {
                 </Text>
               </View>
             </View>
+
+            <AddToCart
+              productId={query.data.product.id}
+              stock={query.data.product.stock}
+            />
 
             {query.data.product.story ? (
               <View style={styles.storyBlock}>
