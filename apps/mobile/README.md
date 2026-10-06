@@ -45,16 +45,21 @@ Shopper auth is Better Auth with the `expo()` + `bearer()` plugins on the web in
 
 ```
 app/
-  _layout.tsx           fonts + splash hold, providers (QueryClient, Currency, CartSync), root Stack
+  _layout.tsx           fonts + splash hold, providers (QueryClient, Currency, CartSync), root Stack ((tabs) only)
   (tabs)/_layout.tsx    bottom tabs (Home, Shop, Cart, Orders, Account) + cart badge
-  (tabs)/index.tsx      Home: bootstrap status + new-arrivals rail
-  (tabs)/shop.tsx       Catalog: FilterBar + ProductGrid (infinite query)
-  (tabs)/cart.tsx       Guest/server cart, qty steppers, summary
-  (tabs)/orders.tsx     Order history (sign-in required)
-  (tabs)/account.tsx    Google sign-in/out + currency
-  product/[slug].tsx    PDP: gallery, specs, story, AddToCart, related
-  checkout.tsx          Address/zone/currency/payment + COD & Paystack flows
-  orders/[id].tsx       Order detail: timeline, cancellation, payment verify
+  (tabs)/(home)/_layout.tsx    Home stack (PDP shared with Shop)
+  (tabs)/(home)/index.tsx      Home: bootstrap status + new-arrivals rail
+  (tabs)/(shop)/_layout.tsx    Shop stack (PDP shared with Home)
+  (tabs)/(shop)/shop.tsx       Catalog: FilterBar + ProductGrid (infinite query)
+  (tabs)/(cart)/_layout.tsx    Cart stack (cart → checkout)
+  (tabs)/(cart)/cart.tsx       Guest/server cart, qty steppers, summary
+  (tabs)/(cart)/checkout.tsx   Address/zone/currency/payment + COD & Paystack flows
+  (tabs)/(orders)/_layout.tsx  Orders stack (list → detail)
+  (tabs)/(orders)/orders.tsx   Order history (sign-in required)
+  (tabs)/(orders)/orders/[id].tsx  Order detail: timeline, cancellation, payment verify
+  (tabs)/(account)/_layout.tsx Account stack
+  (tabs)/(account)/account.tsx Google sign-in/out + currency
+  (tabs)/(home,shop)/product/[slug].tsx  PDP shared by Home and Shop stacks
 src/lib/
   api.ts                Typed fetch client for /api/mobile/v1 + ApiError/PRICE_CHANGED
   auth-client.ts        Better Auth Expo client (scheme maison, SecureStore)
