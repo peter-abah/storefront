@@ -2,7 +2,7 @@ import type { MobileBootstrapDTO } from "@maison/shared";
 import { checkoutSchema, formatPrice } from "@maison/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -94,6 +94,28 @@ function feeFor(
   return { fee, eta };
 }
 
+/**
+ * Paystack popup watchdog deadline. react-native-paystack-webview@5.1.0's
+ * `handlePaystackMessage` `case "error"` (utils.js) only calls `close()` and
+ * never invokes the caller's `onError`, and `validateParams` alerts and
+ * returns without opening the popup. Without a deadline `pending` could stay
+ * true forever with an `awaiting_payment` order on the server. Ten minutes is
+ * comfortably longer than any real Paystack flow.
+ */
+const PAYSTACK_POPUP_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * Kobo → explicit naira display for the confirm step, mirroring the web
+ * `formatKobo` (base cents are kobo while the base currency is NGN). Avoids
+ * `Intl` so the exact same output renders on Hermes and on web.
+ */
+function formatNaira(kobo: number): string {
+  const [whole = "0", decimals = ""] = (kobo / 100).toFixed(2).split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const fraction = decimals.replace(/0+$/, "");
+  return fraction ? `₦${grouped}.${fraction}` : `₦${grouped}`;
+}
+
 /** UUID v4 checkout token — crypto.randomUUID when present, web-fallback otherwise. */
 function newClientToken(): string {
   const cryptoApi = globalThis.crypto as
@@ -180,6 +202,10 @@ export default function CheckoutScreen() {
     <Shell>
       <PaystackProvider
         currency="NGN"
+        // The payment UI promises "Card, transfer or USSD"; the package
+        // defaults to ['card'] only. Values are the package's PaymentChannels
+        // union (types.d.ts): 'card' | 'bank_transfer' | 'ussd' | ...
+        defaultChannels={["card", "bank_transfer", "ussd"]}
         publicKey={bootstrapQuery.data?.checkout.paystackPublicKey ?? ""}
       >
         <CheckoutBody
@@ -302,6 +328,39 @@ function CheckoutBody({
     old: Snapshot;
     new: Snapshot;
   } | null>(null);
+  // Set only by the popup watchdog: the order exists in awaiting_payment and
+  // the modal offers navigation to it (manual recovery path).
+  const [recoveryOrder, setRecoveryOrder] = useState<{
+    orderId: string;
+    number: string;
+  } | null>(null);
+  const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearPopupWatchdog = useCallback(() => {
+    if (popupTimerRef.current !== null) {
+      clearTimeout(popupTimerRef.current);
+      popupTimerRef.current = null;
+    }
+  }, []);
+
+  // Unmount safety: a pending timer must never touch state after teardown.
+  useEffect(() => clearPopupWatchdog, [clearPopupWatchdog]);
+
+  const armPopupWatchdog = useCallback(
+    (orderId: string, number: string) => {
+      clearPopupWatchdog();
+      popupTimerRef.current = setTimeout(() => {
+        popupTimerRef.current = null;
+        setPending(false);
+        setPayPhase("idle");
+        setRecoveryOrder({ orderId, number });
+        setModalError(
+          "We did not hear back from Paystack — the order below is safe and awaiting payment.",
+        );
+      }, PAYSTACK_POPUP_TIMEOUT_MS);
+    },
+    [clearPopupWatchdog],
+  );
 
   // The wire currency must be one the server offers; the context selection
   // wins when valid so the checkout price matches what the shopper browsed.
@@ -439,6 +498,7 @@ function CheckoutBody({
     setFormError(null);
     setModalError(null);
     setSessionExpired(false);
+    setRecoveryOrder(null);
     const check = checkoutSchema.safeParse(buildPayload());
     if (!check.success) {
       applyValidationErrors(check.error.issues);
@@ -452,6 +512,8 @@ function CheckoutBody({
 
   const finishSuccess = useCallback(
     (orderId: string) => {
+      clearPopupWatchdog();
+      setRecoveryOrder(null);
       void queryClient.invalidateQueries({ queryKey: ["cart"] });
       void queryClient.invalidateQueries({ queryKey: ["orders"] });
       setShowConfirm(false);
@@ -459,11 +521,12 @@ function CheckoutBody({
       setPayPhase("idle");
       router.replace({ pathname: "/orders/[id]", params: { id: orderId } });
     },
-    [queryClient],
+    [clearPopupWatchdog, queryClient],
   );
 
   const handleFailure = useCallback(
     (cause: unknown) => {
+      clearPopupWatchdog();
       setPending(false);
       setPayPhase("idle");
       if (isPriceChangedError(cause)) {
@@ -474,9 +537,14 @@ function CheckoutBody({
         );
         return;
       }
+      // F4 client-side mitigation: createOrder is idempotent by clientToken
+      // regardless of the prior order's status, so a token consumed by ANY
+      // failure (OUT_OF_STOCK, NOT_FOUND, RATE_LIMITED, generic, ...) must
+      // never be reused — a retry would replay the dead order as success.
+      // PRICE_CHANGED above already mints its own fresh token.
+      setClientToken(newClientToken());
       if (cause instanceof ApiError) {
         if (cause.code === "PAYMENT_METHOD_MISMATCH") {
-          setClientToken(newClientToken());
           setModalError(`${cause.message} A fresh checkout is ready — confirm again.`);
           return;
         }
@@ -505,7 +573,7 @@ function CheckoutBody({
       }
       setModalError("Something went wrong — please try again.");
     },
-    [],
+    [clearPopupWatchdog],
   );
 
   const verifyPayment = useCallback(
@@ -524,11 +592,26 @@ function CheckoutBody({
   const openPaystackPopup = useCallback(
     (init: {
       orderId: string;
+      number: string;
       reference: string;
       kobo: number;
       email: string;
     }) => {
+      // Mirror the package's `validateParams` locally. That path alerts and
+      // returns without opening the popup and without calling any callback;
+      // onSuccess/onCancel are always functions here, so email + amount are
+      // the only values that can fail. Pre-empting it means `pending` is
+      // released immediately instead of waiting out the watchdog.
+      if (!init.email || !Number.isFinite(init.kobo) || init.kobo <= 0) {
+        setPending(false);
+        setPayPhase("idle");
+        setModalError(
+          "The payment amount is not ready — choose cash on delivery or try again.",
+        );
+        return;
+      }
       setPayPhase("popup");
+      setRecoveryOrder(null);
       try {
         popup.checkout({
           email: init.email,
@@ -546,9 +629,13 @@ function CheckoutBody({
             ],
           },
           onSuccess: (data) => {
+            // The watchdog stays armed through verify so a hung verify call
+            // cannot strand `pending` either; finishSuccess/handleFailure
+            // clear it.
             void verifyPayment(init.orderId, data?.reference ?? init.reference);
           },
           onCancel: () => {
+            clearPopupWatchdog();
             setPending(false);
             setPayPhase("idle");
             setModalError(
@@ -556,6 +643,10 @@ function CheckoutBody({
             );
           },
           onError: (err) => {
+            // react-native-paystack-webview@5.1.0 never delivers this: its
+            // `case "error"` handler only calls close(). Wired for forward
+            // compatibility; the watchdog covers today's silent close.
+            clearPopupWatchdog();
             setPending(false);
             setPayPhase("idle");
             setModalError(
@@ -564,13 +655,15 @@ function CheckoutBody({
             );
           },
         });
+        armPopupWatchdog(init.orderId, init.number);
       } catch {
+        clearPopupWatchdog();
         setPending(false);
         setPayPhase("idle");
         setModalError("Could not open the payment window — try again.");
       }
     },
-    [popup, verifyPayment],
+    [armPopupWatchdog, clearPopupWatchdog, popup, verifyPayment],
   );
 
   const confirmPlaceOrder = useCallback(async () => {
@@ -603,6 +696,7 @@ function CheckoutBody({
         }
         openPaystackPopup({
           orderId: init.orderId,
+          number: init.number,
           reference: init.reference,
           kobo: init.kobo,
           email: init.email,
@@ -954,6 +1048,13 @@ function CheckoutBody({
             </Text>
           </View>
 
+          {paymentMethod === "paystack" && hasZone ? (
+            <Text style={styles.nairaQuote}>
+              Paystack quote: {formatNaira(shownTotal)} — charged in naira,
+              nothing due to the rider.
+            </Text>
+          ) : null}
+
           {drift ? (
             <View style={styles.driftBox}>
               <Text style={styles.driftTitle}>
@@ -1035,6 +1136,33 @@ function CheckoutBody({
                 >
                   {modalError}
                 </Text>
+              ) : null}
+
+              {recoveryOrder ? (
+                <View style={styles.banner}>
+                  <Text style={styles.bannerText}>
+                    {recoveryOrder.number} was created and is awaiting payment.
+                    If money left your account it will confirm automatically —
+                    otherwise check the order before trying again.
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      const target = recoveryOrder;
+                      clearPopupWatchdog();
+                      setRecoveryOrder(null);
+                      setShowConfirm(false);
+                      setPending(false);
+                      setPayPhase("idle");
+                      router.push({
+                        pathname: "/orders/[id]",
+                        params: { id: target.orderId },
+                      });
+                    }}
+                  >
+                    <Text style={styles.bannerLink}>View order</Text>
+                  </Pressable>
+                </View>
               ) : null}
 
               {sessionExpired ? (
@@ -1123,6 +1251,12 @@ function CheckoutBody({
                     ? "Pay now with Paystack"
                     : "Cash on delivery"}
                 </Text>
+                {paymentMethod === "paystack" ? (
+                  <Text style={styles.nairaQuote}>
+                    Paystack quote: {formatNaira(shownTotal)} — charged now in
+                    naira, nothing due to the rider.
+                  </Text>
+                ) : null}
               </View>
               <View style={styles.modalSection}>
                 <Text style={styles.modalLabel}>Currency</Text>
@@ -1160,7 +1294,9 @@ function CheckoutBody({
                 <View style={[styles.summaryLine, styles.totalLine]}>
                   <Text style={styles.totalLabel}>
                     {paymentMethod === "paystack"
-                      ? "Total charged now"
+                      ? shownCode === "NGN"
+                        ? "Total charged now"
+                        : `Converted total (${shownCode}) — not the charge`
                       : "Total due on delivery"}
                   </Text>
                   <Text style={styles.totalValue}>{price(shownTotal)}</Text>
@@ -1198,7 +1334,7 @@ function CheckoutBody({
                   ) : (
                     <Text style={styles.primaryText}>
                       {paymentMethod === "paystack"
-                        ? `Pay ${price(shownTotal)} now`
+                        ? `Pay ${formatNaira(shownTotal)} now`
                         : `Place order · ${price(shownTotal)}`}
                     </Text>
                   )}
@@ -1440,6 +1576,12 @@ const styles = StyleSheet.create({
     color: palette.muted,
     fontSize: 13,
     lineHeight: 18,
+  },
+  nairaQuote: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: spacing.xs,
   },
   summaryLine: {
     alignItems: "center",

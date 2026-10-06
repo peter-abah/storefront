@@ -16,7 +16,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { OrderStatusPill } from "@/components/order-status-pill";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { ApiError, cancelOrder, getOrderDetail } from "@/lib/api";
+import {
+  ApiError,
+  cancelOrder,
+  getOrderDetail,
+  verifyPaystackOrder,
+} from "@/lib/api";
 import {
   canRequestCancel,
   formatOrderDate,
@@ -44,6 +49,9 @@ export default function OrderDetailScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelNotice, setCancelNotice] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifyNotice, setVerifyNotice] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["orders", id],
@@ -74,6 +82,48 @@ export default function OrderDetailScreen() {
       setCancelling(false);
     }
   }, [id, queryClient, query]);
+
+  /**
+   * Manual payment recovery: confirm an awaiting-payment Paystack order
+   * server-side. Safe to call repeatedly (verify is idempotent by
+   * reference); the gateway/webhook may have already settled the payment.
+   */
+  const runVerify = useCallback(async () => {
+    const order = query.data?.order;
+    if (!order) return;
+    if (!order.paystackRef) {
+      setVerifyNotice(null);
+      setVerifyError(
+        "This order has no payment reference yet — contact the shop and we will help.",
+      );
+      return;
+    }
+    setVerifying(true);
+    setVerifyError(null);
+    setVerifyNotice(null);
+    try {
+      await verifyPaystackOrder({
+        orderId: order.id,
+        reference: order.paystackRef,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["orders"] });
+      await query.refetch();
+      setVerifyNotice("Payment confirmed — this order is now paid.");
+    } catch (cause) {
+      // VERIFY_FAILED / PAYMENT_FAILED / AMOUNT_MISMATCH / GATEWAY_* arrive
+      // as ApiError; surface the server's message verbatim, then refresh so
+      // any state verify wrote (e.g. failed) is visible.
+      await queryClient.invalidateQueries({ queryKey: ["orders"] });
+      await query.refetch();
+      setVerifyError(
+        cause instanceof ApiError
+          ? cause.message
+          : "Could not check the payment status — please try again.",
+      );
+    } finally {
+      setVerifying(false);
+    }
+  }, [query, queryClient]);
 
   const confirmCancel = useCallback(() => {
     Alert.alert(
@@ -140,6 +190,10 @@ export default function OrderDetailScreen() {
           cancelling={cancelling}
           data={query.data}
           onCancel={confirmCancel}
+          onVerify={runVerify}
+          verifying={verifying}
+          verifyError={verifyError}
+          verifyNotice={verifyNotice}
         />
       ) : null}
     </SafeAreaView>
@@ -152,12 +206,20 @@ function OrderBody({
   cancelling,
   cancelError,
   cancelNotice,
+  onVerify,
+  verifying,
+  verifyError,
+  verifyNotice,
 }: {
   data: OrderDetailDTO;
   onCancel: () => void;
   cancelling: boolean;
   cancelError: string | null;
   cancelNotice: string | null;
+  onVerify: () => void;
+  verifying: boolean;
+  verifyError: string | null;
+  verifyNotice: string | null;
 }) {
   const { order, items, zoneName, currency } = data;
   const price = (baseCents: number) =>
@@ -177,6 +239,10 @@ function OrderBody({
     paymentStatus: order.paymentStatus,
     createdAt: order.createdAt,
   });
+  // Recovery for a lost Paystack popup result: the order is awaiting
+  // payment, so let the owner re-run the server-side verify on demand.
+  const awaitingPaystack =
+    order.paymentMethod === "paystack" && order.status === "awaiting_payment";
 
   return (
     <ScrollView
@@ -310,6 +376,41 @@ function OrderBody({
           <View style={styles.summaryLine}>
             <Text style={styles.summaryLabel}>Reference</Text>
             <Text style={styles.summaryValue}>{order.paystackRef}</Text>
+          </View>
+        ) : null}
+
+        {awaitingPaystack ? (
+          <View style={styles.verifyBlock}>
+            <Text style={styles.mutedText}>
+              If money left your account, this payment can still confirm
+              automatically. Check its current status now.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              disabled={verifying || !order.paystackRef}
+              onPress={onVerify}
+              style={({ pressed }) => [
+                styles.verifyButton,
+                (verifying || !order.paystackRef) && styles.disabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              {verifying ? (
+                <ActivityIndicator color={palette.bronze} />
+              ) : (
+                <Text style={styles.verifyText}>Check payment status</Text>
+              )}
+            </Pressable>
+            {verifyNotice ? (
+              <Text accessibilityLiveRegion="polite" style={styles.noticeText}>
+                {verifyNotice}
+              </Text>
+            ) : null}
+            {verifyError ? (
+              <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+                {verifyError}
+              </Text>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -571,6 +672,25 @@ const styles = StyleSheet.create({
   totalValue: {
     color: palette.ink,
     fontSize: 18,
+    fontWeight: "700",
+  },
+  verifyBlock: {
+    borderTopColor: palette.line,
+    borderTopWidth: 1,
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    paddingTop: spacing.sm,
+  },
+  verifyButton: {
+    alignItems: "center",
+    borderColor: palette.bronze,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    paddingVertical: spacing.md,
+  },
+  verifyText: {
+    color: palette.bronze,
+    fontSize: 15,
     fontWeight: "700",
   },
   cancelButton: {
