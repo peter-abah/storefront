@@ -12,5 +12,11 @@ tsconfig.tsbuildinfo
 # logs
 *.log
 .DS_Store
+# mobile (Expo)
+apps/mobile/.expo/
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/dist/
+apps/mobile/.env
 # local orchestration state
 docs/orchestration/

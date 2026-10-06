@@ -9,6 +9,8 @@
     "dev:web": "pnpm --filter @maison/web dev",
     "build:web": "pnpm --filter @maison/web build",
     "start:web": "pnpm --filter @maison/web start",
+    "dev:mobile": "pnpm --filter @maison/mobile start",
+    "android:mobile": "pnpm --filter @maison/mobile android",
     "lint": "pnpm --filter @maison/web lint",
     "db:generate": "pnpm --filter @maison/web db:generate",
     "db:migrate": "pnpm --filter @maison/web db:migrate",
