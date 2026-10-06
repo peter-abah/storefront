@@ -224,6 +224,32 @@ export type PaymentMethodDTO = {
   enabled: boolean;
 };
 
+/** apps/web/lib/contact.ts CONTACT + apps/web/lib/admin-emails.ts supportEmailAsync. */
+export type MobileContactDTO = {
+  email: string;
+  phone: string;
+  phoneHref: string;
+  whatsappUrl: string;
+  whatsapp: string;
+  address: string;
+  hours: string;
+};
+
+/** GET /api/mobile/v1/bootstrap — one round-trip for app cold start. */
+export type MobileBootstrapDTO = {
+  currencies: CurrencyDTO[];
+  checkout: CheckoutContextDTO;
+  contact: MobileContactDTO;
+};
+
+/** GET /api/mobile/v1/me — apps/web/lib/auth-session.ts SessionProfile["user"]. */
+export type MobileProfileDTO = {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+};
+
 /** apps/web/app/checkout/page.tsx:119-136 (CheckoutForm payload). */
 export type CheckoutContextDTO = {
   zones: ShippingZoneDTO[];

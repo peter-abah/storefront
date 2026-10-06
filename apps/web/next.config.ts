@@ -6,6 +6,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // @maison/shared ships TypeScript source (main: ./src/index.ts); Next must
+  // compile it alongside the app for RSC, route handlers and server actions.
+  transpilePackages: ["@maison/shared"],
   // Pin file tracing to this workspace package so Next.js does not walk up
   // into the monorepo root (or unrelated parent dirs) when collecting files.
   outputFileTracingRoot: __dirname,

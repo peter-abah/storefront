@@ -76,6 +76,39 @@ export const cartLineSchema = z.object({
 /** apps/web/lib/actions/cart.ts:278 (mergeGuestCart input) */
 export const cartMergeSchema = z.array(cartLineSchema).max(100);
 
+/** POST /api/mobile/v1/cart/merge wire body — route unwraps `.lines`. */
+export const cartMergeBodySchema = z.object({
+  lines: cartMergeSchema,
+});
+
+/** POST /api/mobile/v1/cart/products wire body (cart.ts:330 lobby max 50). */
+export const cartProductsSchema = z.object({
+  ids: z.array(z.string().uuid()).max(50),
+});
+
+/**
+ * GET /api/mobile/v1/products query string. Strict enum validation here so
+ * the route layer 400s bad values instead of listProducts silently falling
+ * back to its defaults (apps/web/lib/queries/products.ts:34-36,70).
+ */
+export const productListQuerySchema = z.object({
+  q: z.string().trim().max(200).optional(),
+  room: z
+    .enum(["living", "bedroom", "dining", "bath", "decor", "outdoor"])
+    .optional(),
+  category: z
+    .enum(["furniture", "lighting", "textiles", "decor", "tableware"])
+    .optional(),
+  minPriceCents: z.coerce.number().int().min(0).optional(),
+  maxPriceCents: z.coerce.number().int().min(0).optional(),
+  inStock: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
+  sort: z.enum(["featured", "newest", "price_asc", "price_desc"]).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+});
+
 /** apps/web/lib/actions/checkout.ts:672-680 (verifyPaystackOrder input) */
 export const paystackVerifySchema = z.object({
   orderId: z.string().uuid("Invalid order."),
@@ -91,5 +124,8 @@ export type AddressInput = z.infer<typeof addressSchema>;
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export type CartLineInput = z.infer<typeof cartLineSchema>;
 export type CartMergeInput = z.infer<typeof cartMergeSchema>;
+export type CartMergeBodyInput = z.infer<typeof cartMergeBodySchema>;
+export type CartProductsInput = z.infer<typeof cartProductsSchema>;
+export type ProductListQuery = z.infer<typeof productListQuerySchema>;
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 export type PaystackVerifyInput = z.infer<typeof paystackVerifySchema>;
