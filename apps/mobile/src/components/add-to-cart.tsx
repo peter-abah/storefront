@@ -25,7 +25,8 @@ export function AddToCart({
   productId: string;
   stock: number;
 }) {
-  const { add, lines, isMutating, pendingProductId } = useCart();
+  const { add, lines, isMutating, pendingProductId, isSessionPending } =
+    useCart();
   const [qty, setQty] = useState(1);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,7 +49,9 @@ export function AddToCart({
   const max = Math.min(stock, 99);
   const inBag = lines.find((l) => l.productId === productId)?.qty ?? 0;
   const pending = isMutating && pendingProductId === productId;
-  const blocked = isMutating;
+  // Session unresolved = auth state unknown; never fire a server mutation
+  // until we know whether this is a guest or a signed-in shopper.
+  const blocked = isMutating || isSessionPending;
 
   const onAdd = async () => {
     if (blocked) return;

@@ -254,6 +254,8 @@ export type CartActions = {
 export type UseCartResult = CartDTO &
   CartActions & {
     isGuest: boolean;
+    /** Auth state is still unknown — neither guest nor signed-in yet. */
+    isSessionPending: boolean;
     isLoading: boolean;
     isMutating: boolean;
     /** Product id of the line currently being mutated, if any. */
@@ -287,11 +289,26 @@ export function useCart(): UseCartResult {
     Error,
     CartMutationVars
   >({
-    mutationFn: (vars) =>
-      isGuest
+    mutationFn: (vars) => {
+      // While the session probe is in flight, auth state is UNKNOWN: firing
+      // the server path here would send a cookie-less request and bounce a
+      // guest through a spurious 401. Refuse until the state resolves.
+      if (sessionPending) {
+        throw new ApiError(
+          "AUTH_PENDING",
+          "Checking your sign-in — try again in a moment.",
+          0,
+        );
+      }
+      return isGuest
         ? runGuestMutation(vars)
-        : runServerMutation(vars, query.data),
+        : runServerMutation(vars, query.data);
+    },
     onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY }),
+    // Error paths may still have mutated server state (e.g. updateQty's
+    // OUT_OF_STOCK removal), so refresh instead of leaving stale lines.
+    onError: () =>
       queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY }),
   });
 
@@ -307,6 +324,7 @@ export function useCart(): UseCartResult {
   return {
     ...data,
     isGuest,
+    isSessionPending: sessionPending,
     isLoading: sessionPending || query.isPending,
     isMutating: mutation.isPending,
     pendingProductId:
