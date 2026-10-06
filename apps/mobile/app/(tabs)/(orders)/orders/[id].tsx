@@ -164,7 +164,7 @@ export default function OrderDetailScreen() {
           <EmptyState
             actionLabel="Back to orders"
             message="This order does not exist or belongs to another account."
-            onAction={() => router.replace("/orders")}
+            onAction={() => router.dismissTo("/orders")}
             title="Order not found"
           />
         </View>

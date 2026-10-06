@@ -94,7 +94,7 @@ export default function CartScreen() {
       </Text>
       <Pressable
         accessibilityRole="button"
-        onPress={() => router.push("/account")}
+        onPress={() => router.navigate("/account")}
         style={({ pressed }) => [styles.guestButton, pressed && styles.pressed]}
       >
         <Text style={styles.guestButtonText}>Sign in</Text>
@@ -113,7 +113,7 @@ export default function CartScreen() {
           <EmptyState
             actionLabel="Browse the shop"
             message="Every room starts with one piece. Explore the collection and pay on delivery when your order arrives."
-            onAction={() => router.push("/shop")}
+            onAction={() => router.navigate("/shop")}
             title="Your cart is empty"
           />
         </ScrollView>
@@ -150,7 +150,7 @@ export default function CartScreen() {
             <View style={styles.bannerActions}>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => router.push("/shop")}
+                onPress={() => router.navigate("/shop")}
               >
                 <Text style={styles.bannerLink}>Continue shopping</Text>
               </Pressable>
@@ -191,7 +191,7 @@ export default function CartScreen() {
             {actionError.includes("sign in") ? (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => router.push("/account")}
+                onPress={() => router.navigate("/account")}
               >
                 <Text style={styles.bannerLink}>Go to Account</Text>
               </Pressable>
@@ -208,7 +208,7 @@ export default function CartScreen() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push("/shop")}
+              onPress={() => router.navigate("/shop")}
               style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
             >
               <Text style={styles.secondaryText}>Continue shopping</Text>
@@ -272,7 +272,7 @@ export default function CartScreen() {
         <View style={styles.footerLinks}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.push("/shop")}
+            onPress={() => router.navigate("/shop")}
           >
             <Text style={styles.bannerLink}>Continue shopping</Text>
           </Pressable>

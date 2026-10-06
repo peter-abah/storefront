@@ -42,7 +42,7 @@ export default function HomeScreen() {
           </Text>
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.push("/shop")}
+            onPress={() => router.navigate("/shop")}
             style={({ pressed }) => [
               styles.heroButton,
               pressed && styles.pressed,
@@ -90,7 +90,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   key={room}
                   onPress={() =>
-                    router.push({ pathname: "/shop", params: { room } })
+                    router.navigate({ pathname: "/shop", params: { room } })
                   }
                   style={({ pressed }) => [
                     styles.roomCard,

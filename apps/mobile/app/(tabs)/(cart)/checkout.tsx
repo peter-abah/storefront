@@ -131,6 +131,16 @@ function newClientToken(): string {
   });
 }
 
+/**
+ * Drops the finished checkout screen from the Cart stack before leaving for
+ * another tab. `dismissAll` is an untargeted POP_TO_TOP, so expo-router applies
+ * it to the focused stack (Cart); without it the Cart tab would keep an empty
+ * checkout screen under a cross-tab `replace`/`navigate`.
+ */
+function resetCartStack() {
+  if (router.canDismiss()) router.dismissAll();
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
@@ -275,7 +285,7 @@ function SignedOutGate() {
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.replace("/shop")}
+          onPress={() => router.navigate("/shop")}
           style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
         >
           <Text style={styles.secondaryText}>Browse the shop</Text>
@@ -520,7 +530,8 @@ function CheckoutBody({
       setShowConfirm(false);
       setPending(false);
       setPayPhase("idle");
-      router.replace({ pathname: "/orders/[id]", params: { id: orderId } });
+      resetCartStack();
+      router.navigate({ pathname: "/orders/[id]", params: { id: orderId } });
     },
     [clearPopupWatchdog, queryClient],
   );
@@ -758,7 +769,10 @@ function CheckoutBody({
       <EmptyState
         actionLabel="Browse the shop"
         message="Add a piece to your cart before checking out."
-        onAction={() => router.replace("/shop")}
+        onAction={() => {
+          resetCartStack();
+          router.navigate("/shop");
+        }}
         title="Your cart is empty"
       />
     );
@@ -805,7 +819,7 @@ function CheckoutBody({
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push("/cart")}
+              onPress={() => router.dismissTo("/cart")}
             >
               <Text style={styles.bannerLink}>Go to cart</Text>
             </Pressable>
@@ -1155,7 +1169,8 @@ function CheckoutBody({
                       setShowConfirm(false);
                       setPending(false);
                       setPayPhase("idle");
-                      router.push({
+                      resetCartStack();
+                      router.navigate({
                         pathname: "/orders/[id]",
                         params: { id: target.orderId },
                       });
@@ -1173,7 +1188,7 @@ function CheckoutBody({
                   </Text>
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => router.replace("/account")}
+                    onPress={() => router.navigate("/account")}
                   >
                     <Text style={styles.bannerLink}>Go to Account</Text>
                   </Pressable>

@@ -112,7 +112,7 @@ export default function OrdersScreen() {
             <EmptyState
               actionLabel="Browse the shop"
               message="Your first order will appear here with live status updates."
-              onAction={() => router.push("/shop")}
+              onAction={() => router.navigate("/shop")}
               title="No orders yet"
             />
           }

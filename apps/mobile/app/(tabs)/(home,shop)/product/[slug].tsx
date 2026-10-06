@@ -1,6 +1,6 @@
 import type { ProductCardDTO } from "@maison/shared";
 import { useQuery } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useSegments } from "expo-router";
 import { useCallback } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,6 +16,8 @@ import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 export default function ProductDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
+  const segments: string[] = useSegments();
+  const inShopTab = segments.includes("(shop)");
 
   const query = useQuery({
     queryKey: ["product", slug],
@@ -27,6 +29,13 @@ export default function ProductDetailScreen() {
     if (router.canGoBack()) router.back();
     else router.replace("/shop");
   }, []);
+
+  const goToShop = useCallback(() => {
+    // Within the Shop tab `dismissTo` pops the existing shop root; from the
+    // Home tab `POP_TO` would be unhandled across tabs, so jump instead.
+    if (inShopTab) router.dismissTo("/shop");
+    else router.navigate("/shop");
+  }, [inShopTab]);
 
   const openProduct = useCallback((product: ProductCardDTO) => {
     router.push({ pathname: "/product/[slug]", params: { slug: product.slug } });
@@ -56,7 +65,7 @@ export default function ProductDetailScreen() {
           <EmptyState
             actionLabel="Browse the shop"
             message="This piece may have sold out or moved."
-            onAction={() => router.replace("/shop")}
+            onAction={goToShop}
             title="Product not found"
           />
         </View>
