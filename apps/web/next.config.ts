@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { dirname } from "path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -9,9 +9,9 @@ const nextConfig: NextConfig = {
   // @maison/shared ships TypeScript source (main: ./src/index.ts); Next must
   // compile it alongside the app for RSC, route handlers and server actions.
   transpilePackages: ["@maison/shared"],
-  // Pin file tracing to this workspace package so Next.js does not walk up
-  // into the monorepo root (or unrelated parent dirs) when collecting files.
-  outputFileTracingRoot: __dirname,
+  // Pin file tracing to the monorepo root so pnpm's root .pnpm store is
+  // included in the serverless bundle instead of being excluded.
+  outputFileTracingRoot: resolve(__dirname, "../.."),
   images: {
     // Curated Unsplash stock (seed-mapped per category/room) + Cloudinary
     // (admin uploads + future fetch-migration of the same Unsplash URLs).
