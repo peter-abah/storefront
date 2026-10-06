@@ -4,7 +4,7 @@ The native Maison shop: Expo SDK 55 + React Native 0.83 + Expo Router (typed rou
 
 ## What's in the app
 
-- **Browse & buy:** Home (API status + new arrivals), Shop (search, room/category/sort/price/in-stock filters, infinite scroll), Product (`product/[slug]`: gallery, specs, add-to-cart), Cart (guest device cart + signed-in server cart), Checkout (COD + Paystack webview, PRICE_CHANGED re-confirm), Orders + `orders/[id]` timeline, Account (Google sign-in, currency switch).
+- **Browse & buy:** Home (branded hero, new-arrivals rail, shop-by-room rail), Shop (search, room/category/sort/price/in-stock filters, infinite scroll), Product (`product/[slug]`: gallery, specs, add-to-cart), Cart (guest device cart + signed-in server cart), Checkout (COD + Paystack webview, PRICE_CHANGED re-confirm), Orders + `orders/[id]` timeline, Account (Google sign-in, currency switch, contact card). Detail screens push inside their tab's stack, so the bottom tab bar stays visible throughout.
 - **Design:** Maison editorial tokens — paper/ink/bronze, Fraunces display + Space Grotesk body (loaded via `expo-font` in `app/_layout.tsx`, families exported from `src/lib/theme.ts`). App icons/splash in `assets/images/` are generated from the brand MotifMark — the web component `apps/web/components/storefront/Editorial.tsx` plus `apps/web/public/favicon.svg`.
 
 ## Environment
@@ -48,7 +48,7 @@ app/
   _layout.tsx           fonts + splash hold, providers (QueryClient, Currency, CartSync), root Stack ((tabs) only)
   (tabs)/_layout.tsx    bottom tabs (Home, Shop, Cart, Orders, Account) + cart badge
   (tabs)/(home)/_layout.tsx    Home stack (PDP shared with Shop)
-  (tabs)/(home)/index.tsx      Home: bootstrap status + new-arrivals rail
+  (tabs)/(home)/index.tsx      Home: branded hero, new-arrivals rail, shop-by-room rail
   (tabs)/(shop)/_layout.tsx    Shop stack (PDP shared with Home)
   (tabs)/(shop)/shop.tsx       Catalog: FilterBar + ProductGrid (infinite query)
   (tabs)/(cart)/_layout.tsx    Cart stack (cart → checkout)

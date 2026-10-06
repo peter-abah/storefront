@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +13,7 @@ import {
 
 import { Screen } from "@/components/screen";
 import { ErrorState, LoadingState } from "@/components/states";
+import { bootstrap } from "@/lib/api";
 import { useCurrency } from "@/lib/currency";
 import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 import { signInWithGoogle, signOut, useSession } from "@/lib/session";
@@ -27,6 +30,9 @@ export default function AccountScreen() {
   } = useCurrency();
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const contactQuery = useQuery({ queryKey: ["bootstrap"], queryFn: bootstrap });
+  const contact = contactQuery.data?.contact;
 
   const handleSignIn = useCallback(async () => {
     setBusy(true);
@@ -198,8 +204,95 @@ export default function AccountScreen() {
             </View>
           ) : null}
         </View>
+
+        <View style={[styles.card, styles.contactCard]}>
+          <Text style={styles.cardTitle}>Contact</Text>
+          {contactQuery.isPending ? (
+            <LoadingState label="Loading contact details…" />
+          ) : contact ? (
+            <View style={styles.contactRows}>
+              {contact.email ? (
+                <ContactRow
+                  label="Email"
+                  onPress={() => openLink(`mailto:${contact.email}`)}
+                  value={contact.email}
+                />
+              ) : null}
+              {contact.phone ? (
+                <ContactRow
+                  label="Phone"
+                  onPress={() =>
+                    openLink(contact.phoneHref || `tel:${contact.phone}`)
+                  }
+                  value={contact.phone}
+                />
+              ) : null}
+              {contact.whatsapp ? (
+                <ContactRow
+                  label="WhatsApp"
+                  onPress={
+                    contact.whatsappUrl
+                      ? () => openLink(contact.whatsappUrl)
+                      : undefined
+                  }
+                  value={contact.whatsapp}
+                />
+              ) : null}
+              {contact.address ? (
+                <ContactRow label="Address" value={contact.address} />
+              ) : null}
+              {contact.hours ? (
+                <ContactRow label="Hours" value={contact.hours} />
+              ) : null}
+            </View>
+          ) : (
+            <Text style={styles.mutedText}>
+              Contact details are unavailable right now.
+            </Text>
+          )}
+        </View>
       </ScrollView>
     </Screen>
+  );
+}
+
+function openLink(url: string) {
+  void Linking.openURL(url).catch(() => {});
+}
+
+function ContactRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  onPress?: () => void;
+}) {
+  const body = (
+    <>
+      <Text style={styles.contactLabel}>{label}</Text>
+      <Text style={[styles.contactValue, onPress ? styles.contactLink : null]}>
+        {value}
+      </Text>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={styles.contactRow}>{body}</View>;
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.contactRow,
+        pressed && styles.buttonPressed,
+      ]}
+    >
+      {body}
+    </Pressable>
   );
 }
 
@@ -217,6 +310,33 @@ const styles = StyleSheet.create({
   },
   currencyCard: {
     marginTop: spacing.lg,
+  },
+  contactCard: {
+    marginTop: spacing.lg,
+  },
+  contactRows: {
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  contactRow: {
+    gap: 2,
+  },
+  contactLabel: {
+    ...fontStyles.bodyMedium,
+    color: palette.muted,
+    fontSize: 12,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  contactValue: {
+    ...fontStyles.body,
+    color: palette.ink,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  contactLink: {
+    color: palette.bronze,
+    textDecorationLine: "underline",
   },
   chipRow: {
     flexDirection: "row",

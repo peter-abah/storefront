@@ -78,7 +78,7 @@ function apiBaseUrl(): string {
   if (!raw) {
     throw new ApiError(
       "CONFIG",
-      "The shop API is not configured. Set EXPO_PUBLIC_API_URL and restart the app.",
+      "The shop is temporarily unavailable. Please try again in a moment.",
       0,
     );
   }
@@ -120,7 +120,7 @@ export async function apiFetch<T>(
   } catch {
     throw new ApiError(
       "NETWORK_ERROR",
-      `Could not reach the Maison API (${apiHost()}). Check your connection and try again.`,
+      "Could not reach the Maison shop. Check your connection and try again.",
       0,
     );
   }
@@ -166,14 +166,6 @@ function isApiResult(value: unknown): value is ApiResult<unknown> {
     value !== null &&
     typeof (value as { ok?: unknown }).ok === "boolean"
   );
-}
-
-export function apiHost(): string {
-  try {
-    return new URL(process.env.EXPO_PUBLIC_API_URL ?? "").host;
-  } catch {
-    return "unknown host";
-  }
 }
 
 export function bootstrap(): Promise<MobileBootstrapDTO> {

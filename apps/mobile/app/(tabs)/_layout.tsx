@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 
 import { useCart } from "@/lib/cart";
@@ -11,7 +12,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: palette.bronze,
-        tabBarInactiveTintColor: palette.muted,
+        tabBarInactiveTintColor: palette.inkSoft,
         tabBarStyle: {
           backgroundColor: palette.surface,
           borderTopColor: palette.line,
@@ -25,17 +26,52 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen name="(home)" options={{ title: "Home" }} />
-      <Tabs.Screen name="(shop)" options={{ title: "Shop" }} />
+      <Tabs.Screen
+        name="(home)"
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons color={color} name="home" size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="(shop)"
+        options={{
+          title: "Shop",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons color={color} name="storefront" size={size} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="(cart)"
         options={{
           title: "Cart",
           tabBarBadge: count > 0 ? (count > 99 ? "99+" : count) : undefined,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons color={color} name="cart" size={size} />
+          ),
         }}
       />
-      <Tabs.Screen name="(orders)" options={{ title: "Orders" }} />
-      <Tabs.Screen name="(account)" options={{ title: "Account" }} />
+      <Tabs.Screen
+        name="(orders)"
+        options={{
+          title: "Orders",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons color={color} name="receipt" size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="(account)"
+        options={{
+          title: "Account",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons color={color} name="person" size={size} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

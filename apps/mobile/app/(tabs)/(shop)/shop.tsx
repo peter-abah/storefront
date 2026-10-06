@@ -1,7 +1,7 @@
-import type { ProductCardDTO } from "@maison/shared";
+import type { ProductCardDTO, Room } from "@maison/shared";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -33,7 +33,22 @@ function errorMessage(error: unknown): string | undefined {
 }
 
 export default function ShopScreen() {
-  const [filters, setFilters] = useState<CatalogFilters>(DEFAULT_FILTERS);
+  const params = useLocalSearchParams<{ room?: string | string[] }>();
+  const paramRoom =
+    typeof params.room === "string" && params.room ? (params.room as Room) : null;
+
+  // The optional ?room= param seeds the filter once per new value; later user
+  // changes are never overwritten by a stale param.
+  const [filters, setFilters] = useState<CatalogFilters>(() =>
+    paramRoom ? { ...DEFAULT_FILTERS, room: paramRoom } : DEFAULT_FILTERS,
+  );
+  const appliedRoom = useRef<Room | null>(paramRoom);
+
+  useEffect(() => {
+    if (!paramRoom || appliedRoom.current === paramRoom) return;
+    appliedRoom.current = paramRoom;
+    setFilters((prev) => ({ ...prev, room: paramRoom }));
+  }, [paramRoom]);
 
   const metaQuery = useQuery({ queryKey: ["filters"], queryFn: getFilters });
 
