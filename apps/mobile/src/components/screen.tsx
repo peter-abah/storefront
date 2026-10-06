@@ -2,7 +2,7 @@ import type { PropsWithChildren } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { palette, spacing } from "@/lib/theme";
+import { fontStyles, palette, spacing } from "@/lib/theme";
 
 type ScreenProps = PropsWithChildren<{
   title: string;
@@ -32,11 +32,12 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   title: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 28,
-    fontWeight: "700",
   },
   subtitle: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
     marginTop: spacing.xs,

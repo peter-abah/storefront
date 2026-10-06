@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { Screen } from "@/components/screen";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 type PlaceholderScreenProps = {
   title: string;
@@ -40,11 +40,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   cardTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 18,
-    fontWeight: "700",
   },
   cardText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 15,
     lineHeight: 22,

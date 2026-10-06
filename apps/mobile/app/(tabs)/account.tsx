@@ -12,7 +12,7 @@ import {
 import { Screen } from "@/components/screen";
 import { ErrorState, LoadingState } from "@/components/states";
 import { useCurrency } from "@/lib/currency";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 import { signInWithGoogle, signOut, useSession } from "@/lib/session";
 
 export default function AccountScreen() {
@@ -237,17 +237,18 @@ const styles = StyleSheet.create({
     borderColor: palette.bronze,
   },
   chipText: {
+    ...fontStyles.bodyMedium,
     color: palette.ink,
     fontSize: 13,
-    fontWeight: "600",
   },
   chipTextSelected: {
+    ...fontStyles.bodySemiBold,
     color: palette.onBronze,
   },
   cardTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 18,
-    fontWeight: "700",
   },
   stack: {
     gap: spacing.sm,
@@ -258,11 +259,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   mutedText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
     lineHeight: 20,
   },
   errorText: {
+    ...fontStyles.body,
     color: palette.danger,
     fontSize: 14,
     lineHeight: 20,
@@ -279,9 +282,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarInitial: {
+    ...fontStyles.display,
     color: palette.surface,
     fontSize: 28,
-    fontWeight: "700",
   },
   button: {
     alignItems: "center",
@@ -295,9 +298,9 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   buttonText: {
+    ...fontStyles.bodyBold,
     color: palette.onBronze,
     fontSize: 15,
-    fontWeight: "700",
   },
   secondaryButton: {
     backgroundColor: palette.paper,

@@ -1,7 +1,7 @@
 import { Tabs } from "expo-router";
 
 import { useCart } from "@/lib/cart";
-import { palette } from "@/lib/theme";
+import { fontStyles, palette } from "@/lib/theme";
 
 export default function TabsLayout() {
   const { count } = useCart();
@@ -17,8 +17,8 @@ export default function TabsLayout() {
           borderTopColor: palette.line,
         },
         tabBarLabelStyle: {
+          ...fontStyles.bodyMedium,
           fontSize: 12,
-          fontWeight: "600",
         },
         sceneStyle: {
           backgroundColor: palette.paper,

@@ -30,6 +30,7 @@ import {
 import { useCart } from "@/lib/cart";
 import { useCurrency } from "@/lib/currency";
 import {
+  fontStyles,
   palette,
   radius,
   spacing,
@@ -1431,20 +1432,21 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   backText: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 15,
-    fontWeight: "600",
   },
   header: {
     paddingBottom: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
   title: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 28,
-    fontWeight: "700",
   },
   subtitle: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
     marginTop: spacing.xs,
@@ -1468,12 +1470,13 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   cardTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 18,
-    fontWeight: "700",
     marginBottom: spacing.xs,
   },
   cardText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
     lineHeight: 20,
@@ -1482,9 +1485,9 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   fieldLabel: {
+    ...fontStyles.bodyMedium,
     color: palette.muted,
     fontSize: 12,
-    fontWeight: "600",
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
@@ -1492,6 +1495,7 @@ const styles = StyleSheet.create({
     color: palette.danger,
   },
   input: {
+    ...fontStyles.body,
     backgroundColor: palette.paper,
     borderColor: palette.line,
     borderRadius: radius.sm,
@@ -1513,6 +1517,7 @@ const styles = StyleSheet.create({
     borderColor: palette.danger,
   },
   fieldError: {
+    ...fontStyles.body,
     color: palette.danger,
     fontSize: 12,
     lineHeight: 16,
@@ -1557,27 +1562,31 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   choiceText: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     flexShrink: 1,
     fontSize: 15,
-    fontWeight: "600",
   },
   choiceHint: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 12,
     lineHeight: 16,
   },
   hint: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 12,
     lineHeight: 18,
   },
   zoneHint: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
     lineHeight: 18,
   },
   nairaQuote: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 12,
     lineHeight: 18,
@@ -1591,23 +1600,25 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   summaryLineName: {
+    ...fontStyles.body,
     color: palette.ink,
     flex: 1,
     fontSize: 14,
   },
   summaryLineTotal: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     fontSize: 14,
-    fontWeight: "600",
   },
   summaryLabel: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
   },
   summaryValue: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     fontSize: 14,
-    fontWeight: "600",
   },
   mutedText: {
     color: palette.muted,
@@ -1624,15 +1635,15 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   totalLabel: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     flex: 1,
     fontSize: 15,
-    fontWeight: "600",
   },
   totalValue: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 18,
-    fontWeight: "700",
   },
   banner: {
     backgroundColor: palette.paper,
@@ -1646,14 +1657,15 @@ const styles = StyleSheet.create({
     borderColor: palette.danger,
   },
   bannerText: {
+    ...fontStyles.body,
     color: palette.ink,
     fontSize: 14,
     lineHeight: 20,
   },
   bannerLink: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 13,
-    fontWeight: "600",
     textDecorationLine: "underline",
   },
   driftBox: {
@@ -1665,16 +1677,18 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   driftTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 14,
-    fontWeight: "700",
   },
   driftText: {
+    ...fontStyles.body,
     color: palette.ink,
     fontSize: 13,
     lineHeight: 19,
   },
   errorText: {
+    ...fontStyles.body,
     color: palette.danger,
     fontSize: 14,
     lineHeight: 20,
@@ -1687,9 +1701,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   primaryText: {
+    ...fontStyles.bodyBold,
     color: palette.onBronze,
     fontSize: 15,
-    fontWeight: "700",
     textAlign: "center",
   },
   secondary: {
@@ -1701,11 +1715,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   secondaryText: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 15,
-    fontWeight: "600",
   },
   terms: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 12,
     lineHeight: 18,
@@ -1735,11 +1750,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   modalTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 24,
-    fontWeight: "700",
   },
   modalSubtitle: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
     lineHeight: 20,
@@ -1751,13 +1767,14 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   modalLabel: {
+    ...fontStyles.bodyBold,
     color: palette.muted,
     fontSize: 11,
-    fontWeight: "700",
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
   modalValue: {
+    ...fontStyles.body,
     color: palette.ink,
     fontSize: 14,
     lineHeight: 20,
@@ -1778,6 +1795,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalPending: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 12,
     textAlign: "center",

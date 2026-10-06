@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 export type CatalogFilters = {
   q: string;
@@ -300,6 +300,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
   },
   search: {
+    ...fontStyles.body,
     backgroundColor: palette.surface,
     borderColor: palette.line,
     borderRadius: radius.sm,
@@ -332,12 +333,13 @@ const styles = StyleSheet.create({
     borderColor: palette.bronze,
   },
   chipText: {
+    ...fontStyles.bodyMedium,
     color: palette.ink,
     fontSize: 13,
   },
   chipTextSelected: {
     color: palette.onBronze,
-    fontWeight: "600",
+    ...fontStyles.bodySemiBold,
   },
   pressed: {
     opacity: 0.85,
@@ -348,9 +350,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   resetText: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 13,
-    fontWeight: "600",
   },
   pricePanel: {
     backgroundColor: palette.surface,
@@ -361,6 +363,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   priceHint: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 12,
     lineHeight: 16,
@@ -371,6 +374,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   priceInput: {
+    ...fontStyles.body,
     backgroundColor: palette.paper,
     borderColor: palette.line,
     borderRadius: radius.sm,
@@ -382,6 +386,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   priceDash: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
   },
@@ -392,11 +397,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   applyText: {
+    ...fontStyles.bodyBold,
     color: palette.onBronze,
     fontSize: 13,
-    fontWeight: "700",
   },
   clearText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
     paddingVertical: 2,

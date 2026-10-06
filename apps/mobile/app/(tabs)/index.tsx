@@ -8,7 +8,7 @@ import { ProductRail } from "@/components/product-rail";
 import { Screen } from "@/components/screen";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { apiHost, bootstrap, listProducts } from "@/lib/api";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 export default function HomeScreen() {
   const bootstrapQuery = useQuery({ queryKey: ["bootstrap"], queryFn: bootstrap });
@@ -130,9 +130,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   cardTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 18,
-    fontWeight: "700",
     marginBottom: spacing.md,
   },
   stack: {
@@ -147,23 +147,24 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   statusLabel: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
   },
   statusValue: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     flexShrink: 1,
     fontSize: 14,
-    fontWeight: "600",
     marginLeft: spacing.md,
   },
   section: {
     marginTop: spacing.xl,
   },
   sectionTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 20,
-    fontWeight: "700",
     marginBottom: spacing.sm,
     paddingHorizontal: spacing.lg,
   },

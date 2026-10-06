@@ -29,7 +29,7 @@ import {
   orderStatusLabel,
   timelineFor,
 } from "@/lib/order-status";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cod: "Cash on delivery",
@@ -493,9 +493,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   backText: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 15,
-    fontWeight: "600",
   },
   stateWrap: {
     flex: 1,
@@ -516,9 +516,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   cardTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 18,
-    fontWeight: "700",
     marginBottom: spacing.xs,
   },
   headerRow: {
@@ -528,11 +528,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   number: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 22,
-    fontWeight: "700",
   },
   date: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
   },
@@ -571,21 +572,22 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bronzeSoft,
   },
   timelineLabel: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
     paddingBottom: spacing.sm,
   },
   timelineLabelReached: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
-    fontWeight: "600",
   },
   offTimeline: {
     gap: spacing.xs,
   },
   offTimelineTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 15,
-    fontWeight: "700",
   },
   itemRow: {
     alignItems: "center",
@@ -607,6 +609,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   thumbFallback: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 18,
   },
@@ -615,26 +618,28 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   itemName: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 14,
-    fontWeight: "600",
   },
   itemTotal: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     fontSize: 14,
-    fontWeight: "700",
   },
   bodyStrong: {
+    ...fontStyles.bodyBold,
     color: palette.ink,
     fontSize: 15,
-    fontWeight: "700",
   },
   bodyText: {
+    ...fontStyles.body,
     color: palette.ink,
     fontSize: 14,
     lineHeight: 20,
   },
   mutedText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
     lineHeight: 18,
@@ -646,15 +651,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   summaryLabel: {
+    ...fontStyles.body,
     color: palette.muted,
     flexShrink: 1,
     fontSize: 14,
   },
   summaryValue: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     flexShrink: 1,
     fontSize: 14,
-    fontWeight: "600",
     textAlign: "right",
   },
   totalLine: {
@@ -664,15 +670,15 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   totalLabel: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     flex: 1,
     fontSize: 15,
-    fontWeight: "600",
   },
   totalValue: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 18,
-    fontWeight: "700",
   },
   verifyBlock: {
     borderTopColor: palette.line,
@@ -689,9 +695,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   verifyText: {
+    ...fontStyles.bodyBold,
     color: palette.bronze,
     fontSize: 15,
-    fontWeight: "700",
   },
   cancelButton: {
     alignItems: "center",
@@ -701,23 +707,26 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   cancelText: {
+    ...fontStyles.bodyBold,
     color: palette.danger,
     fontSize: 15,
-    fontWeight: "700",
   },
   noticeText: {
+    ...fontStyles.body,
     color: palette.success,
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
   },
   errorText: {
+    ...fontStyles.body,
     color: palette.danger,
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
   },
   hint: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
     lineHeight: 18,

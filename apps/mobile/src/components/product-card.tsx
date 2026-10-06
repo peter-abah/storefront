@@ -10,7 +10,7 @@ import {
 } from "react-native";
 
 import { Money } from "@/components/money";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 export function ProductCard({
   product,
@@ -109,6 +109,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   imageFallbackText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 12,
   },
@@ -127,38 +128,40 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bronze,
   },
   badgeText: {
+    ...fontStyles.bodySemiBold,
     color: palette.onBronze,
     fontSize: 11,
-    fontWeight: "600",
   },
   body: {
     gap: 2,
     padding: spacing.md,
   },
   eyebrow: {
+    ...fontStyles.bodyMedium,
     color: palette.muted,
     fontSize: 11,
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
   name: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 16,
-    fontWeight: "600",
     lineHeight: 21,
   },
   tagline: {
+    ...fontStyles.displayItalic,
     color: palette.muted,
     fontSize: 13,
-    fontStyle: "italic",
   },
   price: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     fontSize: 15,
-    fontWeight: "600",
     marginTop: spacing.xs,
   },
   stock: {
+    ...fontStyles.bodyMedium,
     fontSize: 12,
   },
   stockIn: {

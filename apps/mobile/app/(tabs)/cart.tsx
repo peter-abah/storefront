@@ -18,7 +18,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { ApiError } from "@/lib/api";
 import { useCart } from "@/lib/cart";
 import { useMoney } from "@/lib/currency";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 function mutationMessage(cause: unknown): string {
   if (cause instanceof ApiError) {
@@ -424,11 +424,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   guestTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 16,
-    fontWeight: "700",
   },
   guestText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
     lineHeight: 20,
@@ -443,9 +444,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   guestButtonText: {
+    ...fontStyles.bodyBold,
     color: palette.onBronze,
     fontSize: 14,
-    fontWeight: "700",
   },
   banner: {
     backgroundColor: palette.surface,
@@ -459,6 +460,7 @@ const styles = StyleSheet.create({
     borderColor: palette.danger,
   },
   bannerText: {
+    ...fontStyles.body,
     color: palette.ink,
     fontSize: 14,
     lineHeight: 20,
@@ -472,9 +474,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   bannerLink: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 13,
-    fontWeight: "600",
     textDecorationLine: "underline",
   },
   lines: {
@@ -503,6 +505,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   thumbFallback: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 22,
   },
@@ -511,18 +514,19 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   lineName: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 15,
-    fontWeight: "600",
   },
   lineUnit: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
   },
   lineAlert: {
+    ...fontStyles.bodySemiBold,
     color: palette.danger,
     fontSize: 12,
-    fontWeight: "600",
   },
   lineControls: {
     alignItems: "center",
@@ -542,21 +546,22 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   stepText: {
+    ...fontStyles.body,
     color: palette.ink,
     fontSize: 16,
     lineHeight: 20,
   },
   qtyText: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     fontSize: 14,
-    fontWeight: "600",
     minWidth: 24,
     textAlign: "center",
   },
   lineTotal: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 15,
-    fontWeight: "700",
   },
   lineFooter: {
     alignItems: "center",
@@ -565,10 +570,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   stockHint: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 11,
   },
   removeText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 12,
     textDecorationLine: "underline",
@@ -579,11 +586,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   onlyUnavailableTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 16,
-    fontWeight: "700",
   },
   onlyUnavailableText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
     lineHeight: 20,
@@ -601,15 +609,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   summaryLabel: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
   },
   summaryValue: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 20,
-    fontWeight: "700",
   },
   summaryNote: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 12,
     marginTop: spacing.xs,
@@ -622,9 +632,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   primaryText: {
+    ...fontStyles.bodyBold,
     color: palette.onBronze,
     fontSize: 15,
-    fontWeight: "700",
   },
   secondary: {
     alignItems: "center",
@@ -636,9 +646,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   secondaryText: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 14,
-    fontWeight: "600",
   },
   clearButton: {
     alignItems: "center",
@@ -646,6 +656,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   clearText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
     textDecorationLine: "underline",

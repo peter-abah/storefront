@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 
-import { palette, spacing } from "@/lib/theme";
+import { fontStyles, palette, spacing } from "@/lib/theme";
 
 export function ProductGallery({
   images,
@@ -72,6 +72,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   fallbackText: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
   },

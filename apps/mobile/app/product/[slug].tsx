@@ -12,7 +12,7 @@ import { ProductRail } from "@/components/product-rail";
 import { SpecsList } from "@/components/specs-list";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { ApiError, getProduct } from "@/lib/api";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 export default function ProductDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -172,9 +172,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   backText: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 15,
-    fontWeight: "600",
   },
   pressed: {
     opacity: 0.85,
@@ -192,21 +192,22 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
   },
   eyebrow: {
+    ...fontStyles.bodyMedium,
     color: palette.bronze,
     fontSize: 12,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   name: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 30,
-    fontWeight: "700",
     lineHeight: 36,
   },
   tagline: {
+    ...fontStyles.displayItalic,
     color: palette.muted,
     fontSize: 16,
-    fontStyle: "italic",
     lineHeight: 22,
   },
   priceRow: {
@@ -217,9 +218,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   price: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 24,
-    fontWeight: "700",
   },
   stockBadge: {
     borderRadius: radius.lg,
@@ -240,8 +241,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   stockText: {
+    ...fontStyles.bodySemiBold,
     fontSize: 12,
-    fontWeight: "600",
   },
   stockOut: {
     color: palette.onBronze,
@@ -260,21 +261,22 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   sectionLabel: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 12,
-    fontWeight: "600",
     letterSpacing: 1,
     paddingHorizontal: spacing.lg,
     textTransform: "uppercase",
   },
   labelInline: {
+    ...fontStyles.bodySemiBold,
     color: palette.bronze,
     fontSize: 12,
-    fontWeight: "600",
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   story: {
+    ...fontStyles.body,
     color: palette.ink,
     fontSize: 15,
     lineHeight: 23,

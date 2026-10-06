@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 export function LoadingState({ label = "Loading…" }: { label?: string }) {
   return (
@@ -79,21 +79,22 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   muted: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
   },
   errorTitle: {
+    ...fontStyles.display,
     color: palette.danger,
     fontSize: 16,
-    fontWeight: "700",
     textAlign: "center",
   },
   emptyTitle: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 16,
-    fontWeight: "700",
     textAlign: "center",
   },
   button: {
@@ -107,8 +108,8 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   buttonText: {
+    ...fontStyles.bodyBold,
     color: palette.onBronze,
     fontSize: 14,
-    fontWeight: "700",
   },
 });

@@ -1,7 +1,7 @@
 import type { ProductDetailDTO } from "@maison/shared";
 import { StyleSheet, Text, View } from "react-native";
 
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 export function SpecsList({ product }: { product: ProductDetailDTO }) {
   const rows: { label: string; value: string }[] = [];
@@ -44,9 +44,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   title: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 16,
-    fontWeight: "700",
     marginBottom: spacing.sm,
   },
   row: {
@@ -57,11 +57,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   label: {
+    ...fontStyles.bodyMedium,
     color: palette.muted,
     fontSize: 13,
     width: 96,
   },
   value: {
+    ...fontStyles.body,
     color: palette.ink,
     flex: 1,
     fontSize: 13,

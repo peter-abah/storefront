@@ -13,7 +13,7 @@ import { ProductGrid } from "@/components/product-grid";
 import { Screen } from "@/components/screen";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { getFilters, listProducts, type ProductListQuery } from "@/lib/api";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 function toQuery(filters: CatalogFilters, page: number): ProductListQuery {
   return {
@@ -149,6 +149,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   count: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
     paddingBottom: spacing.sm,
@@ -164,9 +165,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   loadMoreText: {
+    ...fontStyles.bodyBold,
     color: palette.onBronze,
     fontSize: 14,
-    fontWeight: "700",
   },
   pressed: {
     opacity: 0.85,

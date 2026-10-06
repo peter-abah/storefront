@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { orderStatusLabel, orderStatusTone } from "@/lib/order-status";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 const TONE_STYLES: Record<
   ReturnType<typeof orderStatusTone>,
@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   text: {
+    ...fontStyles.bodySemiBold,
     fontSize: 12,
-    fontWeight: "700",
   },
 });

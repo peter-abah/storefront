@@ -9,7 +9,7 @@ import {
 
 import { ApiError } from "@/lib/api";
 import { useCart } from "@/lib/cart";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 type Feedback = { kind: "success" | "error"; text: string };
 
@@ -182,14 +182,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   stepText: {
+    ...fontStyles.body,
     color: palette.ink,
     fontSize: 18,
     lineHeight: 22,
   },
   qtyText: {
+    ...fontStyles.bodySemiBold,
     color: palette.ink,
     fontSize: 15,
-    fontWeight: "600",
     minWidth: 28,
     textAlign: "center",
   },
@@ -202,15 +203,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
   },
   addText: {
+    ...fontStyles.bodyBold,
     color: palette.onBronze,
     fontSize: 15,
-    fontWeight: "700",
   },
   inBag: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
   },
   feedback: {
+    ...fontStyles.body,
     fontSize: 13,
     lineHeight: 19,
   },

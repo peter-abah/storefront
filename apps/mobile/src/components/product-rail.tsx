@@ -2,7 +2,7 @@ import type { ProductCardDTO } from "@maison/shared";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 
 import { ProductCard } from "@/components/product-card";
-import { palette, spacing } from "@/lib/theme";
+import { fontStyles, palette, spacing } from "@/lib/theme";
 
 const CARD_WIDTH = 190;
 
@@ -44,9 +44,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 18,
-    fontWeight: "700",
     paddingHorizontal: spacing.lg,
   },
   content: {

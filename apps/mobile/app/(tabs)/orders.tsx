@@ -19,7 +19,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { getOrders } from "@/lib/api";
 import { formatOrderDate } from "@/lib/order-status";
 import { signInWithGoogle, useSession } from "@/lib/session";
-import { palette, radius, spacing } from "@/lib/theme";
+import { fontStyles, palette, radius, spacing } from "@/lib/theme";
 
 export default function OrdersScreen() {
   const session = useSession();
@@ -192,11 +192,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   number: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 16,
-    fontWeight: "700",
   },
   date: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 13,
   },
@@ -207,15 +208,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   items: {
+    ...fontStyles.body,
     color: palette.muted,
     fontSize: 14,
   },
   total: {
+    ...fontStyles.display,
     color: palette.ink,
     fontSize: 17,
-    fontWeight: "700",
   },
   errorText: {
+    ...fontStyles.body,
     color: palette.danger,
     fontSize: 14,
     lineHeight: 20,
