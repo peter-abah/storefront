@@ -31,6 +31,8 @@ Pay COD at the door, or pay now online via Paystack (cards, transfers, USSD) —
 **Non-Goals (explicitly out of V1):**
 - Discounts/coupons, reviews, wishlist, multi-vendor onboarding, multi-language, native apps.
 
+> **2026-10-06:** Native apps (the non-goal above) moved from non-goal to delivered via the Expo mobile client in `apps/mobile` — see `DECISIONS.md` ADR-022. The rest of this PRD is unchanged.
+
 ## 3. Personas
 
 - **Shopper (Amara):** mobile-first, browses rooms, compares dimensions/materials, checks out COD, wants confirmation email + delivery call. Guest can browse, must Google-login to buy.

@@ -166,15 +166,21 @@ No `BASE_CURRENCY` — base currency is the `currencies` row with `is_base=true`
 - Cost guards: Neon sleep acceptable; monitor CU-hrs/storage; Mailgun ≤100/day; Cloudinary free transforms cap — use fixed widths only.
 - Observability: Vercel logs + `email_log` table as source of truth for comms; admin Email tab surfaces failures.
 
-## 11. Branching (this repo)
+## 11. Mobile app (Expo client + `/api/mobile/v1`)
+
+- **Layout:** `apps/mobile` (Expo SDK 55, Expo Router, React Native 0.83) sits beside `apps/web` in one pnpm workspace; `packages/shared` (`@maison/shared`) exports the Zod schemas + DTO types + money helpers both clients consume. Vercel Root Directory is `apps/web`; root tracing picks the workspace packages up from the repo root (ADR-023).
+- **API surface:** the app never touches the DB. It calls `/api/mobile/v1/*` route handlers on the web deployment: `bootstrap`, `filters`, `products`, `products/[slug]`, `cart` (+ `items`, `items/[productId]`, `merge`, `products`), `checkout/cod`, `checkout/paystack/init`, `checkout/paystack/verify`, `me`, `orders`, `orders/[id]` (+ `cancel`). Handlers reuse the web auth/DB/pricing logic; guest carts live on-device until `cart/merge` on sign-in.
+- **Auth:** the same shopper Better Auth instance (`lib/auth.ts`) with `expo()` + `bearer()` plugins (`nextCookies()` stays last for Server Actions). `trustedOrigins` allows the native scheme `maison://` in all environments plus `exp://`/LAN origins in development. The app signs in with Google via the Expo web browser, stores the session in SecureStore, and sends it as a bearer token.
+- **Contracts:** request/response shapes live in `packages/shared/src/schemas.ts` (+ `types.ts`, `money.ts`) and are imported by both `apps/web` route handlers and `apps/mobile`, so the mobile API cannot drift silently from the web.
+- **Build:** `expo prebuild -p android` regenerates the gitignored `android/` project; release APKs build with Gradle 9 under **JDK 17** (`./gradlew :app:assembleRelease`), default-signed with the Expo debug keystore for internal distribution. `EXPO_PUBLIC_API_URL` is inlined at bundle time (prod: `https://ashgrove.peterabah.com`). Details: `apps/mobile/README.md`.
+
+## 12. Branching (this repo)
 - `main` = clean, deploys prod. `feature/shop-v1` in `../storefront-build` = all work. PR `feature/shop-v1 → main` with green `pnpm build + drizzle check`. After merge: `git worktree remove ../storefront-build`.
 - Docs set: `PRD.md` (v1.3) + `ARCHITECTURE.md` (v1.3) + `DECISIONS.md` (v1.4). Before the PR: `rm -rf .next && pnpm build` (Phase 6 code is tsc-clean but has no full-build run yet — HANDOFF §10).
 - Next step (when approved): Paystack keys → flip toggle in Admin → Settings → live test charge + webhook replay.
 
-## 12. Change log
+## 13. Change log
 - 1.3 (2026-10-02): Paystack online (init/verify/webhook, `payment_methods` + order payment cols, kobo integer, prepaid rail, refund-on-cancel) + separate admin auth (isolated instance/tables/cookies/routes, bootstrap, throttle). Auth/checkout/email/env sections rewritten; COD paths intact. Aligned with PRD 1.3 / DECISIONS 1.4.
-
-## 12. Change log
 - 1.2 (2026-10-01): Currencies fully dynamic (no `BASE_CURRENCY`; `is_base` resolved at runtime). Email via provider port (`EMAIL_PROVIDER`, Mailgun sandbox V1, Resend-ready stub). Aligned with PRD 1.2 / DECISIONS 1.1.
 - 1.1 (2026-10-01): Auth.js → Better Auth (`drizzleAdapter pg`, `nextCookies`, `[...auth]` route, `BETTER_AUTH_*` env, CLI schema generation). Drizzle confirmed sole client. Aligned with PRD 1.1 / DECISIONS 1.0.
 - 1.0: initial architecture.

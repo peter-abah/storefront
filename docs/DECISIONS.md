@@ -146,6 +146,18 @@
 - **Why:** The `ADMIN_EMAILS` auto-promote model (ADR-004) tied shop-team access to shopper Google identities and a deploy-touching env allowlist, with no password/reset story and no brute-force story. A tool audience needs credentials + throttle + reset, on sessions that can never resolve to shopper rows.
 - **Consequence:** `ADMIN_EMAILS` is RETIRED as an access gate — `getSessionProfile` no longer promotes and always upserts `customer`; the break-glass SQL promote goes with it. `ADMIN_EMAILS` REMAINS for mail routing (admin digest + `supportEmail()` fallback + queued mails), so it stays in `.env.example` with no values. Shopper flows (Google login, checkout, orders, cart) are unchanged.
 
+## ADR-022 — Native mobile client via Expo on the shared web backend (scope extension)
+
+- **Decision:** deliver the shopper experience as a native client in `apps/mobile` (Expo SDK 55, Expo Router, React Native) against the existing Next.js backend, adding a mobile-shaped `/api/mobile/v1/*` route surface instead of a second server. The client reuses shopper Better Auth through the `expo()`/`bearer()` plugins (`maison://` trusted origin) and `@maison/shared` schemas; checkout keeps the COD + Paystack paths and the PRICE_CHANGED re-confirm guarantee.
+- **Why:** PRD §2 listed native apps as an explicit V1 non-goal, but owner scope extended after V1 shipped; a native client serves the mobile-first shopper persona with a device cart + order tracking. Sharing the backend avoids duplicating auth, pricing, stock and email logic.
+- **Consequence:** the PRD §2 non-goal is superseded for mobile (dated note in `PRD.md`); `/api/mobile/v1` is a versioned surface that must stay consistent with web server actions; mobile releases build/install independently (Android APK, default debug-keystore signing until a release keystore/EAS credentials exist).
+
+## ADR-023 — Monorepo layout (`apps/web` + `apps/mobile` + `packages/shared`)
+
+- **Decision:** one pnpm-workspace monorepo: `apps/web` (Next.js, Vercel Root Directory), `apps/mobile` (Expo), `packages/shared` (Zod schemas + DTOs + money), docs at the repo-root `docs/`, pnpm pinned via `packageManager`.
+- **Why:** the mobile client and the mobile API must share contracts (product/cart/order DTOs, checkout schema, money rules) — a workspace package keeps one source of truth, and one root lockfile keeps dependency resolution reproducible across both apps.
+- **Consequence:** Vercel deploys from the repo root with Root Directory `apps/web` (root tracing picks up `packages/shared`); mobile builds run locally/CI via `expo prebuild` + Gradle; no app may import another app's source — shared code goes through `@maison/shared`.
+
 ---
 
 ## Env implications (summary, details in ARCHITECTURE.md)
