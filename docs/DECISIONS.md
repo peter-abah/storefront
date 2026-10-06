@@ -1,6 +1,6 @@
 # Decisions — Maison Editorial Shop (Home & Living)
 
-- **Version:** 1.4 (locked for V1)
+- **Version:** 1.5 (locked for V1)
 - **Worktree:** `../storefront-build` on `feature/shop-v1`
 - **Scope of this file:** decisions only. PRD lives in `PRD.md`, system design in `ARCHITECTURE.md`.
 - **Rule:** any change to these decisions requires a new ADR entry + PRD/ARCH update. No silent drift.
@@ -173,6 +173,7 @@ No `BASE_CURRENCY` — base is the `currencies` row with `is_base=true`.
 
 ## Change log
 
+- 2026-10-06: v1.5 — Native Expo mobile app over the shared web backend (ADR-022: `/api/mobile/v1`, Better Auth Expo/bearer, COD + Paystack) + pnpm monorepo layout (ADR-023: `apps/web` + `apps/mobile` + `packages/shared`, Vercel root tracing). PRD §2 native-apps non-goal superseded (dated note); ARCH 1.4 extended.
 - 2026-10-02: v1.4 — Paystack online alongside COD (ADR-020: verify-before-decrement, webhook fallback, kobo integer, admin toggle) + separate admin auth (ADR-021: isolated instance/tables/cookies/routes, email+password, bootstrap, ADMIN_EMAILS retired as gate). PRD 1.3 / ARCH 1.3 extended, COD intact.
 - 2026-10-02: v1.3 — Phase 1–4 calls: contact single-source enforcement (ADR-015), honest totals + confirm modal (ADR-016), PRICE_CHANGED re-confirm (ADR-017), admin shell separation (ADR-018), visual folio system (ADR-019). PRD/ARCH unchanged (no drift).
 - 2026-10-01: v1.2 — curated Unsplash photography mapped per category/room (ADR-010), Maison brand chrome + footer + contact identity (ADR-011). Aligned with PRD 1.2 / ARCH 1.2.

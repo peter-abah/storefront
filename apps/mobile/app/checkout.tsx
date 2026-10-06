@@ -1780,7 +1780,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   strong: {
-    fontWeight: "700",
+    ...fontStyles.bodyBold,
   },
   modalTotals: {
     gap: 0,

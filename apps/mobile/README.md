@@ -5,7 +5,7 @@ The native Maison shop: Expo SDK 55 + React Native 0.83 + Expo Router (typed rou
 ## What's in the app
 
 - **Browse & buy:** Home (API status + new arrivals), Shop (search, room/category/sort/price/in-stock filters, infinite scroll), Product (`product/[slug]`: gallery, specs, add-to-cart), Cart (guest device cart + signed-in server cart), Checkout (COD + Paystack webview, PRICE_CHANGED re-confirm), Orders + `orders/[id]` timeline, Account (Google sign-in, currency switch).
-- **Design:** Maison editorial tokens — paper/ink/bronze, Fraunces display + Space Grotesk body (loaded via `expo-font` in `app/_layout.tsx`, families exported from `src/lib/theme.ts`). App icons/splash are generated from the brand MotifMark in `assets/images/`.
+- **Design:** Maison editorial tokens — paper/ink/bronze, Fraunces display + Space Grotesk body (loaded via `expo-font` in `app/_layout.tsx`, families exported from `src/lib/theme.ts`). App icons/splash in `assets/images/` are generated from the brand MotifMark — the web component `apps/web/components/storefront/Editorial.tsx` plus `apps/web/public/favicon.svg`.
 
 ## Environment
 
@@ -77,5 +77,5 @@ JAVA_HOME=/home/peter/.gradle/jdks/eclipse_adoptium-17-amd64-linux/jdk-17.0.15+6
 ```
 
 - **JDK 17 is required.** The generated Gradle 9 setup uses the foojay toolchain resolver 0.5.0, which cannot use the ambient JDK 21; point `JAVA_HOME` at a Temurin 17 (verify the path above on your machine — `~/.gradle/jdks/` is where Gradle provisions it).
-- Output: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`.
+- Output: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`; the release build also copies the handover artifact to `apps/mobile/dist/maison-1.0.0.apk` (gitignored).
 - The bundle inlines `EXPO_PUBLIC_API_URL` at build time, so rebuild after changing `.env`.

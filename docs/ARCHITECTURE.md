@@ -1,6 +1,6 @@
 # Architecture — Maison Editorial Shop
 
-- **Version:** 1.3 (matches PRD 1.3 + DECISIONS 1.4)
+- **Version:** 1.4 (matches PRD 1.3 + DECISIONS 1.5)
 - **Stack (locked):** Next.js 15 App Router + TS + Tailwind, Neon Postgres (prod) / Docker Postgres 16 (dev) + Drizzle ORM (`neon-http` vs `postgres-js` auto-switch in `lib/db.ts`), Better Auth ×2 (`auth.ts` Google shoppers + `admin-auth.ts` email+password admin, `@better-auth/drizzle-adapter` `provider: 'pg'`), Cloudinary Free, Mailgun REST (sandbox V1), Paystack inline + verify/refund + webhook, Vercel Free.
 - **Why:** Neon is Postgres (serverless). No Supabase → auth + storage split out. Drizzle is the sole DB client with one schema + one migration chain for both DBs; `lib/db.ts` picks `neon-http` when `DATABASE_URL` contains `neon.tech`, else `postgres-js` TCP for local Docker. Better Auth keeps Google sessions in the same DB via the Drizzle adapter so one DB remains source of truth per environment.
 
@@ -176,10 +176,11 @@ No `BASE_CURRENCY` — base currency is the `currencies` row with `is_base=true`
 
 ## 12. Branching (this repo)
 - `main` = clean, deploys prod. `feature/shop-v1` in `../storefront-build` = all work. PR `feature/shop-v1 → main` with green `pnpm build + drizzle check`. After merge: `git worktree remove ../storefront-build`.
-- Docs set: `PRD.md` (v1.3) + `ARCHITECTURE.md` (v1.3) + `DECISIONS.md` (v1.4). Before the PR: `rm -rf .next && pnpm build` (Phase 6 code is tsc-clean but has no full-build run yet — HANDOFF §10).
+- Docs set: `PRD.md` (v1.3) + `ARCHITECTURE.md` (v1.4) + `DECISIONS.md` (v1.5). Before the PR: `rm -rf .next && pnpm build` (Phase 6 code is tsc-clean but has no full-build run yet — HANDOFF §10).
 - Next step (when approved): Paystack keys → flip toggle in Admin → Settings → live test charge + webhook replay.
 
 ## 13. Change log
+- 1.4 (2026-10-06): pnpm monorepo (`apps/web` + `apps/mobile` + `packages/shared`) and new §11 Mobile app (`/api/mobile/v1` route surface, Expo/bearer auth + `maison://` trusted origin, shared contracts, APK build); old §11/§12 renumbered. Aligned with PRD 1.3 / DECISIONS 1.5.
 - 1.3 (2026-10-02): Paystack online (init/verify/webhook, `payment_methods` + order payment cols, kobo integer, prepaid rail, refund-on-cancel) + separate admin auth (isolated instance/tables/cookies/routes, bootstrap, throttle). Auth/checkout/email/env sections rewritten; COD paths intact. Aligned with PRD 1.3 / DECISIONS 1.4.
 - 1.2 (2026-10-01): Currencies fully dynamic (no `BASE_CURRENCY`; `is_base` resolved at runtime). Email via provider port (`EMAIL_PROVIDER`, Mailgun sandbox V1, Resend-ready stub). Aligned with PRD 1.2 / DECISIONS 1.1.
 - 1.1 (2026-10-01): Auth.js → Better Auth (`drizzleAdapter pg`, `nextCookies`, `[...auth]` route, `BETTER_AUTH_*` env, CLI schema generation). Drizzle confirmed sole client. Aligned with PRD 1.1 / DECISIONS 1.0.
